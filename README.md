@@ -6,6 +6,9 @@ keeps up with the file as it changes. It is modelled on
 [Omawrite](https://github.com/omacom/omawrite), and the two work as a pair:
 write in one, read in the other.
 
+<img width="1956" height="1196" alt="Omaread showing a project README in GitHub's light colours" src="docs/omaread-light.png" />
+<img width="1956" height="1196" alt="The same README in GitHub's dark colours" src="docs/omaread-dark.png" />
+
 Files are parsed by [cmark-gfm](https://github.com/github/cmark-gfm), the
 parser github.com itself uses, with the same extensions. That covers tables,
 task lists, strikethrough, autolinks and footnotes, plus GitHub's alerts
