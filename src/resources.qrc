@@ -1,0 +1,11 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="Main.qml">Main.qml</file>
+        <file alias="BlockItem.qml">BlockItem.qml</file>
+        <file alias="RichText.qml">RichText.qml</file>
+        <file alias="CodeBlock.qml">CodeBlock.qml</file>
+        <file alias="ImagesBlock.qml">ImagesBlock.qml</file>
+        <file alias="TableBlock.qml">TableBlock.qml</file>
+        <file alias="CalloutIcon.qml">CalloutIcon.qml</file>
+    </qresource>
+</RCC>

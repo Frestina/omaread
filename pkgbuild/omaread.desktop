@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Omaread
+GenericName=Markdown Reader
+Comment=Read Markdown files the way GitHub shows them
+Exec=omaread %f
+Icon=omaread
+Terminal=false
+Categories=Office;Viewer;
+MimeType=text/markdown;text/x-markdown;
+Keywords=markdown;read;readme;viewer;github;
+StartupWMClass=omaread
