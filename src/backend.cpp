@@ -99,6 +99,13 @@ QString Backend::fileName() const {
     return m_path.isEmpty() ? QString() : QFileInfo(m_path).fileName();
 }
 
+QString Backend::displayPath() const {
+    const QString home = QDir::homePath();
+    if (m_path.startsWith(home + QLatin1Char('/')))
+        return QLatin1Char('~') + m_path.mid(home.size());
+    return m_path;
+}
+
 bool Backend::isMarkdown(const QString &path) {
     return markdownSuffixes.contains(QFileInfo(path).suffix().toLower());
 }

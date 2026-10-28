@@ -16,6 +16,7 @@ class Backend : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString fileName READ fileName NOTIFY documentChanged)
     Q_PROPERTY(QString filePath READ filePath NOTIFY documentChanged)
+    Q_PROPERTY(QString displayPath READ displayPath NOTIFY documentChanged)
     Q_PROPERTY(QVariantList blocks READ blocks NOTIFY documentChanged)
     Q_PROPERTY(QString error READ error NOTIFY documentChanged)
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY documentChanged)
@@ -32,6 +33,8 @@ public:
 
     QString fileName() const;
     QString filePath() const { return m_path; }
+    // The path with the home folder shortened to ~, as a shell prompt shows it.
+    QString displayPath() const;
     QVariantList blocks() const { return m_blocks; }
     QString error() const { return m_error; }
     bool canGoBack() const { return !m_history.isEmpty(); }

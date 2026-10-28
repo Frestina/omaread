@@ -307,7 +307,7 @@ ApplicationWindow {
                 rightMargin: win.scaled(14)
                 verticalCenter: parent.verticalCenter
             }
-            text: win.hoveredLink || backend.filePath
+            text: win.hoveredLink || backend.displayPath
             elide: Text.ElideMiddle
             color: win.colors.muted
             font.family: backend.codeFont
