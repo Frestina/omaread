@@ -71,6 +71,12 @@ public:
     // Whether formulas or diagrams are still being drawn.
     bool drawingFigures() const { return m_figures.drawing(); }
 
+    // What a click on a link that Omaread does not show itself does: opens
+    // it in the app that shows such things, shows it in the file manager, or
+    // refuses it. Markdown files are not asked about; they open in Omaread.
+    enum class LinkHandling { Open, ShowInFolder, Refuse };
+    static LinkHandling linkHandling(const QUrl &url);
+
     static bool isMarkdown(const QString &path);
     static QHash<QString, QString> readTheme(const QString &path);
     // The page's colours: GitHub's, with the Omarchy theme's laid over them.

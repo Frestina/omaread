@@ -486,6 +486,51 @@ private slots:
         QCOMPARE(MarkdownRenderer::resolveUrl("mailto:a@b.c", baseUrl, rootUrl), QUrl("mailto:a@b.c"));
     }
 
+    void linksOpenOnlyWhatShowsThem() {
+        using Handling = Backend::LinkHandling;
+        QCOMPARE(Backend::linkHandling(QUrl("https://github.com/o/r")), Handling::Open);
+        QCOMPARE(Backend::linkHandling(QUrl("HTTP://example.com")), Handling::Open);
+        QCOMPARE(Backend::linkHandling(QUrl("mailto:a@b.c")), Handling::Open);
+        QCOMPARE(Backend::linkHandling(QUrl("steam://run/1")), Handling::Refuse);
+        QCOMPARE(Backend::linkHandling(QUrl("vscode://file/x")), Handling::Refuse);
+        QCOMPARE(Backend::linkHandling(QUrl("javascript:alert(1)")), Handling::Refuse);
+
+        QTemporaryDir dir;
+        const auto write = [&dir](const char *name, const QByteArray &content, bool executable = false) {
+            QFile file(dir.filePath(QLatin1String(name)));
+            if (!file.open(QIODevice::WriteOnly))
+                return QUrl();
+            file.write(content);
+            if (executable)
+                file.setPermissions(file.permissions() | QFile::ExeOwner);
+            return QUrl::fromLocalFile(file.fileName());
+        };
+        QBuffer png;
+        png.open(QIODevice::WriteOnly);
+        QImage(4, 4, QImage::Format_RGB32).save(&png, "PNG");
+
+        QCOMPARE(Backend::linkHandling(write("shot.png", png.data())), Handling::Open);
+        QCOMPARE(Backend::linkHandling(write("notes.txt", "Plain words.\n")), Handling::Open);
+        QCOMPARE(Backend::linkHandling(write("LICENSE", "MIT License\n")), Handling::Open);
+        QCOMPARE(Backend::linkHandling(write("guide.pdf", "%PDF-1.4\n")), Handling::Open);
+        // What could run, or start something, is only shown.
+        QCOMPARE(Backend::linkHandling(write("logo.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"/>")),
+                 Handling::ShowInFolder);
+        QCOMPARE(Backend::linkHandling(write("setup.desktop", "[Desktop Entry]\nExec=x\n")),
+                 Handling::ShowInFolder);
+        QCOMPARE(Backend::linkHandling(write("build.sh", "echo hi\n")), Handling::ShowInFolder);
+        QCOMPARE(Backend::linkHandling(write("run.txt", "plain\n", true)), Handling::ShowInFolder);
+        QCOMPARE(Backend::linkHandling(write("fake.png", "#!/bin/sh\necho hi\n")), Handling::ShowInFolder);
+        QCOMPARE(Backend::linkHandling(write("tool.jar", "PK\x03\x04")), Handling::ShowInFolder);
+        QCOMPARE(Backend::linkHandling(QUrl::fromLocalFile(dir.path())), Handling::ShowInFolder);
+    }
+
+    void refusedLinksSaySo() {
+        Backend backend;
+        backend.activateLink(QStringLiteral("steam://run/1"), 0);
+        QCOMPARE(backend.status(), QStringLiteral("Omaread does not open steam: links"));
+    }
+
     void githubBlobImagesLoadRaw() {
         const RenderedMarkdown rendered = render("![a](https://github.com/o/r/blob/main/a.png)\n");
         QCOMPARE(blockAt(rendered, 0).value("images").toList().at(0).toMap().value("src").toString(),

@@ -8,6 +8,9 @@
 #include <QBuffer>
 #include <QClipboard>
 #include <QColor>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
@@ -16,6 +19,7 @@
 #include <QEventLoop>
 #include <QGuiApplication>
 #include <QImageReader>
+#include <QMimeDatabase>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QPageLayout>
@@ -36,12 +40,42 @@ constexpr int textZoomStepCount = int(sizeof(textZoomSteps) / sizeof(textZoomSte
 const QString textZoomSetting = QStringLiteral("textZoom");
 const QString outlineSetting = QStringLiteral("outline/open");
 
+// Links that leave the computer open in the browser or mail app, as on
+// GitHub; any other scheme would start whatever app claims it.
+const QStringList openedSchemes{QStringLiteral("http"), QStringLiteral("https"), QStringLiteral("mailto")};
+
 const QStringList markdownSuffixes{QStringLiteral("md"), QStringLiteral("markdown"),
                                    QStringLiteral("mdown"), QStringLiteral("mkd"),
                                    QStringLiteral("mkdn"), QStringLiteral("mdwn")};
 
 QString themeColorsPath() {
     return QDir::homePath() + QStringLiteral("/.local/state/omarchy/current/theme/colors.toml");
+}
+
+// Pictures, PDFs and plain text open in their viewers, which only show them;
+// SVG can carry scripts, so it is not among them.
+bool isViewable(const QMimeType &type) {
+    const QString name = type.name();
+    return (name.startsWith(QLatin1String("image/")) && name != QLatin1String("image/svg+xml"))
+        || name == QLatin1String("application/pdf") || name == QLatin1String("text/plain");
+}
+
+// Shows a file selected in its folder, or a folder, in the file manager;
+// without one that answers, the folder opens as the desktop opens folders.
+void showInFolder(const QFileInfo &info) {
+    const bool isFolder = info.isDir();
+    const QUrl url = QUrl::fromLocalFile(info.absoluteFilePath());
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.FileManager1"), QStringLiteral("/org/freedesktop/FileManager1"),
+        QStringLiteral("org.freedesktop.FileManager1"),
+        isFolder ? QStringLiteral("ShowFolders") : QStringLiteral("ShowItems"));
+    message << QStringList{url.toString()} << QString();
+    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message));
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [watcher, info, isFolder, url]() {
+        if (watcher->isError())
+            QDesktopServices::openUrl(isFolder ? url : QUrl::fromLocalFile(info.absolutePath()));
+        watcher->deleteLater();
+    });
 }
 
 QColor blend(const QColor &from, const QColor &to, qreal amount) {
@@ -309,7 +343,38 @@ void Backend::activateLink(const QString &href, qreal position) {
             return;
         }
     }
-    QDesktopServices::openUrl(url);
+
+    switch (linkHandling(url)) {
+    case LinkHandling::Open:
+        QDesktopServices::openUrl(url);
+        break;
+    case LinkHandling::ShowInFolder:
+        showInFolder(QFileInfo(url.toLocalFile()));
+        setStatus(QStringLiteral("Showing %1 in the file manager").arg(QFileInfo(url.toLocalFile()).fileName()));
+        break;
+    case LinkHandling::Refuse:
+        setStatus(url.scheme().isEmpty() ? QStringLiteral("Omaread does not open this link")
+                                         : QStringLiteral("Omaread does not open %1: links").arg(url.scheme()));
+        break;
+    }
+}
+
+Backend::LinkHandling Backend::linkHandling(const QUrl &url) {
+    if (!url.isLocalFile())
+        return openedSchemes.contains(url.scheme().toLower()) ? LinkHandling::Open : LinkHandling::Refuse;
+
+    // A file a document links to is shown, not run: only what a viewer
+    // shows opens, by its name and by what is in it, since either can say
+    // otherwise. A file with no suffix, such as LICENSE, goes by what is in it.
+    const QFileInfo info(url.toLocalFile());
+    if (!info.isFile() || info.isExecutable())
+        return LinkHandling::ShowInFolder;
+    const QMimeDatabase mimes;
+    const QMimeType byName = mimes.mimeTypeForFile(info, QMimeDatabase::MatchExtension);
+    const bool nameSays = (info.suffix().isEmpty() && byName.isDefault()) || isViewable(byName);
+    if (nameSays && isViewable(mimes.mimeTypeForFile(info, QMimeDatabase::MatchContent)))
+        return LinkHandling::Open;
+    return LinkHandling::ShowInFolder;
 }
 
 void Backend::goBack() {
