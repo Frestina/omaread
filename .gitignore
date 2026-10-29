@@ -12,3 +12,4 @@ qrc_*.cpp
 .qmake.stash
 Makefile
 /build-tools/
+/pkgbuild/*.tar.gz

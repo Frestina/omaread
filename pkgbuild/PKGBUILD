@@ -7,24 +7,38 @@ pkgdesc='Read Markdown files the way GitHub shows them, built with Qt Quick'
 arch=('x86_64' 'aarch64')
 url='https://github.com/Frestina/omaread'
 license=('MIT')
-install='omaread.install'
-depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'cmark-gfm' 'syntax-highlighting' 'xdg-desktop-portal')
-optdepends=('mathjax: math'
-            'nodejs: math'
-            'mermaid-cli: Mermaid diagrams')
-makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative' 'cmark-gfm' 'syntax-highlighting')
-source=()
-sha256sums=()
+options=('!debug')
+depends=(
+  'cmark-gfm'
+  'hicolor-icon-theme'
+  'qt6-base'
+  'qt6-declarative'
+  'qt6-svg'
+  'syntax-highlighting'
+  'xdg-desktop-portal'
+)
+optdepends=(
+  'mathjax: draw math'
+  'nodejs: draw math, with mathjax'
+  'mermaid-cli: draw Mermaid diagrams'
+)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
 
 build() {
-  cd "$startdir/.."
+  cd "$pkgname-$pkgver"
   ./bin/build
 }
 
+check() {
+  cd "$pkgname-$pkgver"
+  ./bin/test
+}
+
 package() {
-  cd "$startdir/.."
-  /usr/bin/install -Dm755 build/omaread "$pkgdir/usr/bin/omaread"
-  /usr/bin/install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-  /usr/bin/install -Dm644 "$startdir/omaread.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/omaread.svg"
-  /usr/bin/install -Dm644 "$startdir/omaread.desktop" "$pkgdir/usr/share/applications/omaread.desktop"
+  cd "$pkgname-$pkgver"
+  install -Dm755 build/omaread "$pkgdir/usr/bin/omaread"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 pkgbuild/omaread.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/omaread.svg"
+  install -Dm644 pkgbuild/omaread.desktop "$pkgdir/usr/share/applications/omaread.desktop"
 }
