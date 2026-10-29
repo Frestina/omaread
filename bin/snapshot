@@ -9,7 +9,7 @@
 # ratio (default 2). Your Omarchy theme applies unless --light or --dark asks
 # for GitHub's own colours, which runs with an empty home folder; --home runs
 # with DIR as the home folder instead. Qt's messages, QML warnings among them,
-# go to the terminal. --outline shows the outline of headings.
+# go to the terminal. --outline shows the contents panel.
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"

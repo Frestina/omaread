@@ -1036,7 +1036,7 @@ ApplicationWindow {
                 iconName: "outline"
                 active: win.outlineShown
                 enabled: win.headings.length > 0
-                tooltip: enabled ? "Outline (Ctrl+Shift+O)" : "No headings to outline"
+                tooltip: enabled ? "Contents (Ctrl+Shift+O)" : "No headings"
                 onClicked: backend.outlineOpen = !backend.outlineOpen
             }
 

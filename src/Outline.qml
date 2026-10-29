@@ -1,8 +1,9 @@
 import QtQuick
 import QtQuick.Controls
 
-// The document's headings, indented by level, as GitHub's outline: a click
-// goes to one, and the section being read is marked and kept in view.
+// The document's headings, indented by level, as GitHub's outline, shown as
+// Contents: a click goes to one, and the section being read is marked and
+// kept in view.
 Rectangle {
     id: root
     objectName: "outline"
@@ -56,7 +57,7 @@ Rectangle {
                 leftMargin: win.scaled(16)
                 verticalCenter: parent.verticalCenter
             }
-            text: "Outline"
+            text: "Contents"
             color: win.colors.foreground
             font.family: backend.textFont
             font.pixelSize: win.scaled(14)

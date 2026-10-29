@@ -62,13 +62,13 @@ without opening a window.
 
 ## Shortcuts
 
-- `Ctrl+Shift+O` shows or hides the outline, as does the list button at the
-  bottom left, and Omaread remembers which. The outline lists the headings,
-  indented by level as GitHub's does. A click glides to a heading, opening
+- `Ctrl+Shift+O` shows or hides the contents, as does the list button at the
+  bottom left, and Omaread remembers which. The contents list the headings,
+  indented by level as GitHub's outline does. A click glides to a heading, opening
   the `<details>` it is folded in, and the section being read is marked as
-  you scroll. It sits beside the page, or over it when the window is too
+  you scroll. The panel sits beside the page, or over it when the window is too
   narrow to keep the text at a comfortable width, where `Esc` closes it. A
-  file without headings has no outline.
+  file without headings has no contents.
 - `F1`, `Ctrl+/` or `Ctrl+?` lists every shortcut, as does the keyboard
   button at the bottom left.
 - `Ctrl+O` opens a Markdown file through the portal picker, as does the folder
@@ -151,7 +151,7 @@ Omaread: a PNG of the window, or the printed pages as a PDF.
 ./bin/snapshot README.md /tmp/readme.png                 # in your Omarchy theme
 ./bin/snapshot --light --size 800x1200 README.md /tmp/readme.png
 ./bin/snapshot --dark --scroll 900 README.md /tmp/further-down.png
-./bin/snapshot --outline README.md /tmp/with-outline.png
+./bin/snapshot --outline README.md /tmp/with-contents.png
 ./bin/snapshot README.md /tmp/readme.pdf                 # as printed, on A4
 ```
 
