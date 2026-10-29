@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Dialogs as Dialogs
+import QtQuick.Layouts
 import QtQuick.Window
 
 ApplicationWindow {
@@ -28,6 +29,13 @@ ApplicationWindow {
     // The <details> opened or closed by hand, by id; the rest are as the file
     // has them.
     property var detailsState: ({})
+    property bool findOpen: false
+    // Every match on the page in reading order, as {edit, start}.
+    property var findMatches: []
+    property int findIndex: -1
+    // The find bar lies over the top of the page, so the page makes room
+    // for it there.
+    readonly property int findRoom: findOpen ? findBar.height + 12 : 0
 
     Material.theme: backend.darkMode ? Material.Dark : Material.Light
     Material.accent: colors.link
@@ -118,6 +126,131 @@ ApplicationWindow {
         scrollTo(page.y + item.y + item.gapTop - scaled(16));
     }
 
+    // The texts find in page searches, in reading order.
+    function findableTexts(item, out) {
+        for (var i = 0; i < item.children.length; ++i) {
+            var child = item.children[i];
+            if (child.findable === true)
+                out.push(child);
+            else
+                findableTexts(child, out);
+        }
+        return out;
+    }
+
+    // Each text marks its own matches. A new search starts from the first
+    // match on screen or below it, as a browser's does; one run again, after
+    // a reload, keeps its place.
+    function updateFind(fromScreen) {
+        findDelay.stop();
+        var query = findOpen ? findField.text : "";
+        var previous = findIndex;
+        var matches = [];
+        var texts = findableTexts(page, []);
+        for (var i = 0; i < texts.length; ++i) {
+            var starts = backend.find(texts[i].textDocument, query, -1);
+            for (var j = 0; j < starts.length; ++j)
+                matches.push({ edit: texts[i], start: starts[j] });
+        }
+        findMatches = matches;
+        if (matches.length === 0)
+            findIndex = -1;
+        else if (fromScreen)
+            findIndex = firstMatchOnScreen();
+        else
+            findIndex = Math.max(0, Math.min(previous, matches.length - 1));
+        showMatch();
+    }
+
+    function matchY(match) {
+        var rect = match.edit.positionToRectangle(match.start);
+        return match.edit.mapToItem(page, rect.x, rect.y).y + page.y;
+    }
+
+    function firstMatchOnScreen() {
+        for (var i = 0; i < findMatches.length; ++i) {
+            if (!blockOf(findMatches[i].edit).folded && matchY(findMatches[i]) >= flick.contentY)
+                return i;
+        }
+        return 0;
+    }
+
+    function blockOf(item) {
+        while (item && item.folded === undefined)
+            item = item.parent;
+        return item;
+    }
+
+    function moveFind(direction) {
+        // A search still waiting for the typing to pause lands on its first
+        // match, which is where the reader meant to go.
+        if (findDelay.running) {
+            updateFind(true);
+            return;
+        }
+        if (findMatches.length === 0)
+            return;
+        var previous = findMatches[findIndex];
+        findIndex = (findIndex + direction + findMatches.length) % findMatches.length;
+        if (previous && previous.edit !== findMatches[findIndex].edit)
+            backend.find(previous.edit.textDocument, findField.text, -1);
+        showMatch();
+    }
+
+    // Marks the current match and scrolls to it, opening any <details> it
+    // is folded in first.
+    function showMatch() {
+        var match = findMatches[findIndex];
+        if (!match)
+            return;
+        backend.find(match.edit.textDocument, findField.text, match.start);
+        var block = blockOf(match.edit);
+        if (block && block.folded) {
+            unfold(block.block);
+            Qt.callLater(revealMatch, match);
+        } else {
+            revealMatch(match);
+        }
+    }
+
+    function revealMatch(match) {
+        var rect = match.edit.positionToRectangle(match.start);
+        // A code panel or table scrolls sideways to it, then the page down.
+        for (var item = match.edit.parent; item && item !== flick; item = item.parent) {
+            if (item.contentX === undefined || !item.interactive)
+                continue;
+            var x = match.edit.mapToItem(item.contentItem, rect.x, 0).x;
+            if (x < item.contentX || x + rect.width > item.contentX + item.width)
+                item.contentX = Math.max(0, Math.min(x - item.width / 3, item.contentWidth - item.width));
+        }
+        var y = matchY(match);
+        var top = flick.contentY + findBar.height + scaled(24);
+        if (y < top || y + rect.height > flick.contentY + flick.height - scaled(24))
+            scrollTo(y - flick.height / 3);
+    }
+
+    // The page keeps still on screen as the room for the bar comes and goes.
+    function openFind() {
+        if (!findOpen && flick.contentY > 0) {
+            findOpen = true;
+            flick.contentY += findRoom;
+        }
+        findOpen = true;
+        findField.forceActiveFocus();
+        findField.selectAll();
+        updateFind(true);
+    }
+
+    function closeFind() {
+        findDelay.stop();
+        // The page takes the keys again, to scroll.
+        flick.forceActiveFocus();
+        if (findOpen && flick.contentY > 0)
+            flick.contentY = Math.max(0, flick.contentY - findRoom);
+        findOpen = false;
+        updateFind(false);
+    }
+
     function toggleFullScreen() {
         visibility = visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen;
     }
@@ -135,6 +268,9 @@ ApplicationWindow {
             // A reload keeps what was opened; another file starts afresh.
             if (position >= 0)
                 win.detailsState = {};
+            win.findMatches = [];
+            if (win.findOpen)
+                Qt.callLater(win.updateFind, position >= 0);
             // Wait for the blocks to be laid out before moving through them.
             if (anchor)
                 Qt.callLater(win.scrollToAnchor, anchor);
@@ -151,6 +287,43 @@ ApplicationWindow {
         function onStatusChanged() {
             statusTimer.restart();
         }
+
+        // The marks take the new palette's colours.
+        function onColorsChanged() {
+            if (win.findOpen)
+                Qt.callLater(win.updateFind, false);
+        }
+    }
+
+    // Marking every text again for each letter typed would stall a long
+    // page, so the search waits until the typing pauses.
+    Timer {
+        id: findDelay
+        interval: 150
+        onTriggered: win.updateFind(true)
+    }
+
+    Shortcut {
+        sequence: "Ctrl+F"
+        onActivated: win.openFind()
+    }
+
+    Shortcut {
+        sequences: ["Ctrl+G", "F3"]
+        enabled: win.findOpen
+        onActivated: win.moveFind(1)
+    }
+
+    Shortcut {
+        sequences: ["Ctrl+Shift+G", "Shift+F3"]
+        enabled: win.findOpen
+        onActivated: win.moveFind(-1)
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        enabled: win.findOpen
+        onActivated: win.closeFind()
     }
 
     Dialogs.FileDialog {
@@ -282,7 +455,7 @@ ApplicationWindow {
         Column {
             id: page
             x: Math.round((flick.width - win.columnWidth) / 2)
-            y: win.scaled(40)
+            y: win.scaled(40) + win.findRoom
             width: win.columnWidth
 
             Repeater {
@@ -291,6 +464,110 @@ ApplicationWindow {
                 delegate: BlockItem {
                     width: page.width
                 }
+            }
+        }
+    }
+
+    // Find in page, as Omawrite's find bar.
+    Pane {
+        id: findBar
+        anchors {
+            top: parent.top
+            left: parent.left
+            right: parent.right
+            topMargin: 12
+            leftMargin: 12
+            rightMargin: 12
+        }
+        height: win.scaled(56)
+        visible: win.findOpen
+        z: 10
+        leftPadding: 16
+        rightPadding: 8
+        topPadding: 0
+        bottomPadding: 0
+        Material.elevation: 8
+
+        background: Rectangle {
+            radius: 9
+            color: win.colors.codeBackground
+            border.width: 1
+            border.color: win.colors.border
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            spacing: 8
+
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                TextInput {
+                    id: findField
+                    anchors.fill: parent
+                    verticalAlignment: TextInput.AlignVCenter
+                    selectByMouse: true
+                    clip: true
+                    color: win.colors.foreground
+                    selectionColor: win.colors.selection
+                    selectedTextColor: win.colors.selectionForeground
+                    font.family: backend.textFont
+                    font.pixelSize: win.scaled(17)
+                    onTextChanged: findDelay.restart()
+                    Keys.onReturnPressed: (event) => {
+                        win.moveFind((event.modifiers & Qt.ShiftModifier) ? -1 : 1);
+                        event.accepted = true;
+                    }
+                    Keys.onEnterPressed: (event) => {
+                        win.moveFind((event.modifiers & Qt.ShiftModifier) ? -1 : 1);
+                        event.accepted = true;
+                    }
+                }
+
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Find"
+                    visible: findField.text.length === 0
+                    color: win.colors.muted
+                    font.family: backend.textFont
+                    font.pixelSize: win.scaled(17)
+                }
+            }
+
+            Label {
+                Layout.preferredWidth: win.scaled(58)
+                Layout.fillHeight: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                text: win.findMatches.length === 0 ? "0/0" : (win.findIndex + 1) + "/" + win.findMatches.length
+                color: win.colors.muted
+                font.family: backend.textFont
+                font.pixelSize: win.scaled(16)
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: 34
+                color: win.colors.border
+            }
+
+            SearchIconButton {
+                iconName: "up"
+                iconColor: win.colors.muted
+                onClicked: win.moveFind(-1)
+            }
+
+            SearchIconButton {
+                iconName: "down"
+                iconColor: win.colors.muted
+                onClicked: win.moveFind(1)
+            }
+
+            SearchIconButton {
+                iconName: "close"
+                iconColor: win.colors.muted
+                onClicked: win.closeFind()
             }
         }
     }

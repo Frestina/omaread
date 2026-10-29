@@ -9,10 +9,12 @@ INCLUDEPATH += ../src
 SOURCES += \
     snapshot.cpp \
     ../src/backend.cpp \
+    ../src/findhighlighter.cpp \
     ../src/markdownrenderer.cpp \
     ../src/printdocument.cpp
 HEADERS += \
     ../src/backend.h \
+    ../src/findhighlighter.h \
     ../src/markdownrenderer.h \
     ../src/printdocument.h
 

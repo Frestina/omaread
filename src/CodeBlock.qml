@@ -39,6 +39,7 @@ Rectangle {
 
         TextEdit {
             id: code
+            readonly property bool findable: true
             text: panel.block.code
             textFormat: TextEdit.PlainText
             readOnly: true

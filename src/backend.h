@@ -70,6 +70,10 @@ public:
     Q_INVOKABLE int anchorIndex(const QString &anchor) const;
     Q_INVOKABLE void edit();
     Q_INVOKABLE void copyText(const QString &text);
+    // Marks find in page's matches in one text's document, a TextEdit's
+    // textDocument, and says where they start; current is the start of the
+    // one to show as current, or -1.
+    Q_INVOKABLE QVariantList find(QObject *textDocument, const QString &query, int current) const;
     Q_INVOKABLE void printDocument();
     Q_INVOKABLE void increaseTextSize();
     Q_INVOKABLE void decreaseTextSize();

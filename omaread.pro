@@ -9,6 +9,7 @@ LIBS += -lcmark-gfm-extensions -lcmark-gfm
 HEADERS += \
     src/backend.h \
     src/cli.h \
+    src/findhighlighter.h \
     src/markdownrenderer.h \
     src/printdocument.h \
     src/systemtheme.h
@@ -17,6 +18,7 @@ SOURCES += \
     src/main.cpp \
     src/backend.cpp \
     src/cli.cpp \
+    src/findhighlighter.cpp \
     src/markdownrenderer.cpp \
     src/printdocument.cpp \
     src/systemtheme.cpp

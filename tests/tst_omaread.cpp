@@ -1,7 +1,11 @@
 #include <QtTest>
+#include <QTextBlock>
+#include <QTextDocument>
+#include <QTextLayout>
 
 #include "backend.h"
 #include "cli.h"
+#include "findhighlighter.h"
 #include "markdownrenderer.h"
 #include "printdocument.h"
 
@@ -294,6 +298,39 @@ private slots:
         QCOMPARE(colors.value("link").toString(), QStringLiteral("#0969da"));
     }
 
+    void findIgnoresCaseAndTheAccentsTheQueryLeavesOut() {
+        using Matches = QList<int>;
+        const auto find = FindHighlighter::findMatches;
+        QCOMPARE(find(QStringLiteral("Café, CAFE and cafe"), QStringLiteral("cafe")), Matches({0, 6, 15}));
+        QCOMPARE(find(QStringLiteral("élève, Łódź, Straße"), QStringLiteral("lodz")), Matches({7}));
+        // An accented letter in the query matches only itself.
+        QCOMPARE(find(QStringLiteral("cafe café"), QStringLiteral("café")), Matches({5}));
+        // Scripts whose marks make different letters keep them.
+        QCOMPARE(find(QStringLiteral("й и"), QStringLiteral("и")), Matches({2}));
+        QCOMPARE(find(QStringLiteral("aaaa"), QStringLiteral("aa")), Matches({0, 2}));
+        QCOMPARE(find(QStringLiteral("text"), QString()), Matches());
+    }
+
+    void findMarksMatchesOverTheText() {
+        QTextDocument document;
+        document.setHtml(QStringLiteral("<p>One <b>one</b></p><p>none</p>"));
+        QCOMPARE(FindHighlighter::mark(&document, QStringLiteral("one"), 4, false), QList<int>({0, 4, 9}));
+        const QList<QTextLayout::FormatRange> first = document.begin().layout()->formats();
+        QCOMPARE(first.size(), 2);
+        QCOMPARE(first.at(0).format.background().color(), QColor("#ffe58a"));
+        // The current match is stronger. Only the background is laid over
+        // the text, so the bold stays.
+        QCOMPARE(first.at(1).format.background().color(), QColor("#ffad42"));
+        QCOMPARE(first.at(1).format.properties().size(), 1);
+        QCOMPARE(document.begin().next().layout()->formats().size(), 1);
+
+        // Text set again is marked again; an empty query clears the marks.
+        document.setHtml(QStringLiteral("<p>one</p>"));
+        QTRY_COMPARE(document.begin().layout()->formats().size(), 1);
+        QCOMPARE(FindHighlighter::mark(&document, QString(), -1, false), QList<int>());
+        QCOMPARE(document.begin().layout()->formats().size(), 0);
+    }
+
     void markdownFilesAreRecognised() {
         QVERIFY(Backend::isMarkdown("notes/README.MD"));
         QVERIFY(Backend::isMarkdown("a.markdown"));
@@ -306,5 +343,5 @@ private slots:
     }
 };
 
-QTEST_GUILESS_MAIN(OmareadTest)
+QTEST_MAIN(OmareadTest)
 #include "tst_omaread.moc"

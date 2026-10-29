@@ -1,5 +1,6 @@
 #include "backend.h"
 
+#include "findhighlighter.h"
 #include "markdownrenderer.h"
 #include "printdocument.h"
 
@@ -20,6 +21,7 @@
 #include <QPrintDialog>
 #include <QPrinter>
 #include <QProcess>
+#include <QQuickTextDocument>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTextDocument>
@@ -298,6 +300,16 @@ void Backend::copyText(const QString &text) {
         return;
     QGuiApplication::clipboard()->setText(text);
     setStatus(QStringLiteral("Copied"));
+}
+
+QVariantList Backend::find(QObject *textDocument, const QString &query, int current) const {
+    auto *quickDocument = qobject_cast<QQuickTextDocument *>(textDocument);
+    QVariantList starts;
+    if (!quickDocument)
+        return starts;
+    for (const int start : FindHighlighter::mark(quickDocument->textDocument(), query, current, m_darkMode))
+        starts.append(start);
+    return starts;
 }
 
 void Backend::setParentWindow(QWindow *window) {

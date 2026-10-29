@@ -7,6 +7,8 @@ TextEdit {
     property string html
     property int size: win.bodySize
     property real lineHeight: 1.5
+    // Searched by find in page.
+    readonly property bool findable: true
     // The first line's baseline. A fixed line height puts some of its extra
     // space above the text, which baselineOffset leaves out.
     readonly property real firstBaseline: {

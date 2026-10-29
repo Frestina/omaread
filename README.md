@@ -50,6 +50,10 @@ without opening a window.
 - `Ctrl+=` and `Ctrl+-` change the text size, `Ctrl+0` returns to the default.
   `Ctrl+scroll` does the same.
 - `Ctrl+C` copies the selected text. Code blocks have a Copy button.
+- `Ctrl+F` finds in the page, as in Omawrite: case and any accents left out
+  of the search are ignored, so `cafe` finds Café. `Enter` or `Ctrl+G` goes
+  to the next match, `Shift+Enter` or `Ctrl+Shift+G` to the one before, and
+  `Esc` closes. A match in a closed `<details>` opens it.
 - `Up`/`Down` or `j`/`k` scroll, as do `Page Up`/`Page Down` and `Space`.
   `Home`/`End` or `g`/`G` jump to the top and bottom.
 - `Super+F` or `F11` toggles fullscreen.
@@ -114,7 +118,7 @@ GitHub's list in [gemoji](https://github.com/github/gemoji).
 
 ## Not yet
 
-Syntax highlighting in code blocks, find in page, Mermaid diagrams and math.
+Syntax highlighting in code blocks, Mermaid diagrams and math.
 
 ## License
 
