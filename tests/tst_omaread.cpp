@@ -371,6 +371,35 @@ private slots:
         QVERIFY(!github.value("themeVariables").toObject().contains("pie1"));
     }
 
+    void missingProgramsAreNamed() {
+        // Nothing to draw with on the PATH.
+        const QByteArray path = qgetenv("PATH");
+        qputenv("PATH", "/nonexistent");
+        Figures figures;
+        const QVariantMap colors{{"background", "#ffffff"}, {"foreground", "#1f2328"}};
+        QCOMPARE(figures.picture("math", "x", false, colors, false), (QVariantMap{{"missing", true}}));
+        QCOMPARE(figures.picture("mermaid", "graph LR", true, colors, false), (QVariantMap{{"missing", true}}));
+        qputenv("PATH", path);
+
+        const auto figure = [](const QString &, const QString &, bool) { return QVariantMap{{"missing", true}}; };
+        const RenderedMarkdown rendered = MarkdownRenderer::render(
+            "Inline $x$.\n\n$$\ny\n$$\n\n```mermaid\ngraph LR\n```\n", baseUrl, rootUrl, figure);
+        // A formula in a line stays TeX, with no hint to crowd the text.
+        QCOMPARE(blockAt(rendered, 0).value("html").toString(), QStringLiteral("Inline <code>x</code>."));
+        QCOMPARE(blockAt(rendered, 1).value("code").toString(), QStringLiteral("y"));
+        QVERIFY(blockAt(rendered, 1).value("hint").toString().contains(QStringLiteral("sudo pacman -S nodejs mathjax")));
+        QCOMPARE(blockAt(rendered, 2).value("code").toString(), QStringLiteral("graph LR"));
+        QVERIFY(blockAt(rendered, 2).value("hint").toString().contains(QStringLiteral("sudo pacman -S mermaid-cli")));
+
+        // One drawing failed, or not drawn yet, says nothing.
+        QVERIFY(!blockAt(render("```mermaid\ngraph LR\n```\n"), 0).contains(QStringLiteral("hint")));
+
+        // Paper shows the source without the hint.
+        const QString html = PrintDocument::html(rendered.blocks, {}, 600);
+        QVERIFY(html.contains(QStringLiteral("graph LR")));
+        QVERIFY(!html.contains(QStringLiteral("pacman")));
+    }
+
     void printedFormulasFitThePrintedText() {
         const auto figure = [](const QString &, const QString &, bool) {
             return QVariantMap{{"src", "file:///f.svg"}, {"width", 32.0}, {"height", 16.0}};

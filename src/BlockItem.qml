@@ -178,8 +178,23 @@ Item {
     Component {
         id: codeBlock
 
-        CodeBlock {
-            block: root.block
+        // A formula or diagram whose program is missing says what to install
+        // under its source.
+        Column {
+            spacing: win.scaled(8)
+
+            CodeBlock {
+                width: parent.width
+                block: root.block
+            }
+
+            RichText {
+                visible: !!root.block.hint
+                width: parent.width
+                html: root.block.hint || ""
+                size: win.scaled(14)
+                color: root.colors.muted
+            }
         }
     }
 

@@ -27,7 +27,8 @@ public:
 
     // The picture of a figure in the page's colours, as {src, width, height},
     // its size in CSS pixels at 16px text. Empty while it is not drawn yet,
-    // and then it is wanted, or when it cannot be drawn.
+    // and then it is wanted, or when it cannot be drawn; {missing: true} when
+    // what draws it is not installed.
     QVariantMap picture(const QString &kind, const QString &source, bool display,
                         const QVariantMap &colors, bool darkMode);
 

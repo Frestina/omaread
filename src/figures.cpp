@@ -131,7 +131,9 @@ QVariantMap Figures::picture(const QString &kind, const QString &source, bool di
                     {"width", qreal(size.width()) / scale(kind)},
                     {"height", qreal(size.height()) / scale(kind)}};
     }
-    if (!canDraw(kind) || QFile::exists(m_dir + QLatin1Char('/') + figure.key + QStringLiteral(".failed")))
+    if (!canDraw(kind))
+        return {{"missing", true}};
+    if (QFile::exists(m_dir + QLatin1Char('/') + figure.key + QStringLiteral(".failed")))
         return {};
     if (!m_drawing.contains(figure.key))
         m_wanted.insert(figure.key, figure);

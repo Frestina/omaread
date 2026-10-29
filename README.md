@@ -36,6 +36,11 @@ and dark themes on GitHub's palettes, as on github.com, or the Omarchy theme's.
 A block that is not a diagram stays code. Printing draws formulas and diagrams
 in GitHub's light colours.
 
+Without `node` and `mathjax`, or without `mermaid-cli`, a formula on its own
+line or a diagram shows as its source with a line under it naming what to
+install. A formula in a line of text shows as TeX without one, and paper
+leaves the line out.
+
 READMEs read as they would in their repository:
 
 - Images and links resolve relative to the file. A path starting with `/`

@@ -609,8 +609,11 @@ private:
 
     void displayFigure(const QString &kind, const QString &source) {
         const QVariantMap picture = figure(kind, source, true);
-        if (picture.isEmpty()) {
-            add({{"type", "code"}, {"code", source}, {"language", kind}, {"html", QString()}});
+        if (!picture.contains(QStringLiteral("src"))) {
+            QVariantMap block{{"type", "code"}, {"code", source}, {"language", kind}, {"html", QString()}};
+            if (picture.value(QStringLiteral("missing")).toBool())
+                block.insert(QStringLiteral("hint"), installHint(kind));
+            add(block);
             return;
         }
         QVariantMap image = picture;
@@ -620,12 +623,20 @@ private:
         add({{"type", "images"}, {"images", QVariantList{image}}, {"align", "center"}});
     }
 
+    // What to install to draw a kind of figure, shown under its source. A
+    // formula in a line of text goes without, which would crowd the text.
+    static QString installHint(const QString &kind) {
+        return kind == QLatin1String("math")
+            ? QStringLiteral("To draw formulas, install nodejs and mathjax: <code>sudo pacman -S nodejs mathjax</code>")
+            : QStringLiteral("To draw diagrams, install mermaid-cli: <code>sudo pacman -S mermaid-cli</code>");
+    }
+
     // A formula in a line of text: a picture set on the text's middle, or
     // its TeX as code. Pictures are measured for 16px text; the view scales
     // them with the text.
     QString inlineMath(const Formula &formula) const {
         const QVariantMap picture = figure(QStringLiteral("math"), formula.tex, formula.display);
-        if (picture.isEmpty())
+        if (!picture.contains(QStringLiteral("src")))
             return QLatin1String("<code>") + formula.tex.toHtmlEscaped() + QLatin1String("</code>");
         return QStringLiteral("<img class=\"math\" src=\"%1\" width=\"%2\" height=\"%3\" style=\"vertical-align: middle;\">")
             .arg(picture.value("src").toString().toHtmlEscaped())
