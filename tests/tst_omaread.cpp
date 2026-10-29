@@ -812,6 +812,17 @@ private slots:
         QCOMPARE(face->property("radius").toReal(), 0.0);
         view.backend.setCornerRadius(6);
         QCOMPARE(face->property("radius").toReal(), 6.0);
+        // As do the find bar, the shortcuts and the contents over the page.
+        const auto radius = [](QObject *item) {
+            return item->property("background").value<QObject *>()->property("radius").toReal();
+        };
+        QCOMPARE(radius(view.find("findBar")), 6.0);
+        QCOMPARE(radius(view.find<QObject>("shortcutsDialog")), 6.0);
+        view.backend.setCornerRadius(0);
+        QCOMPARE(radius(view.find("findBar")), 0.0);
+        QCOMPARE(radius(view.find<QObject>("shortcutsDialog")), 0.0);
+        view.backend.setCornerRadius(-1);
+        QCOMPARE(radius(view.find("findBar")), 9.0);
 
         view.click(button);
         QTRY_COMPARE(flick->property("contentY").toReal(), 0.0);
@@ -929,6 +940,9 @@ private slots:
         // Over the page in a narrow window.
         view.window->resize(560, 800);
         QTRY_VERIFY(outline->property("floating").toBool());
+        view.backend.setCornerRadius(4);
+        QCOMPARE(outline->property("radius").toReal(), 4.0);
+        view.backend.setCornerRadius(-1);
         // Esc closes it there, as a popup.
         QTest::keyClick(view.window, Qt::Key_Escape);
         QTRY_VERIFY(!outline->isVisible());

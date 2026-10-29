@@ -98,9 +98,10 @@ without opening a window.
 - `Up`/`Down` or `j`/`k` scroll, as do `Page Up`/`Page Down` and `Space`.
   `Home`/`End` or `g`/`G` jump to the top and bottom, and once the top is a
   whole window out of sight, a button at the bottom right glides back to it.
-  Its corners are rounded as Hyprland rounds your windows' (Omarchy's square
-  ones, unless a theme or your config rounds them), and it follows a theme
-  change. A touchpad moves the page twice as far as your fingers go, and a
+  Its corners, and those of the find bar, the shortcuts and the contents
+  over the page, are rounded as Hyprland rounds your windows' (Omarchy's
+  square ones, unless a theme or your config rounds them), and follow a
+  theme change. Code blocks and tables keep GitHub's. A touchpad moves the page twice as far as your fingers go, and a
   mouse wheel glides three lines a notch, as in a browser and in Omawrite.
 - `Super+F` or `F11` toggles fullscreen.
 - `Ctrl+W` or `Ctrl+Q` closes the window.

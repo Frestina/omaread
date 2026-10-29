@@ -93,6 +93,13 @@ ApplicationWindow {
             + "<div style=\"line-height: " + Math.round(size * lineHeight) + "px;\">" + html + "</div>";
     }
 
+    // The window's own panels and buttons round their corners as Hyprland
+    // rounds the windows', as Omarchy's shell does, at most into a pill
+    // for one size across; while that is not known, as GitHub would.
+    function chromeRadius(github, size) {
+        return backend.cornerRadius < 0 ? github : Math.min(backend.cornerRadius, size / 2);
+    }
+
     function detailsOpen(id, initial) {
         var state = detailsState[id];
         return state === undefined ? initial : state;
@@ -870,6 +877,7 @@ ApplicationWindow {
     // Find in page, as Omawrite's find bar.
     Pane {
         id: findBar
+        objectName: "findBar"
         anchors {
             top: parent.top
             left: flick.left
@@ -888,7 +896,7 @@ ApplicationWindow {
         Material.elevation: 8
 
         background: Rectangle {
-            radius: 9
+            radius: win.chromeRadius(9, findBar.height)
             color: win.colors.codeBackground
             border.width: 1
             border.color: win.colors.border

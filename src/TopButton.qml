@@ -29,7 +29,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: backend.cornerRadius < 0 ? width / 2 : Math.min(backend.cornerRadius, width / 2)
+        radius: win.chromeRadius(width / 2, width)
         color: hitArea.containsMouse ? win.colors.codeBackground : win.colors.background
         border.width: 1
         border.color: win.colors.border

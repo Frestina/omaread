@@ -23,7 +23,7 @@ Rectangle {
     color: win.colors.background
     border.width: floating ? 1 : 0
     border.color: win.colors.border
-    radius: floating ? win.scaled(12) : 0
+    radius: floating ? win.chromeRadius(win.scaled(12), width) : 0
 
     onCurrentChanged: {
         if (current >= 0)
@@ -103,7 +103,7 @@ Rectangle {
 
             width: ListView.view.width
             height: label.implicitHeight + win.scaled(12)
-            radius: win.scaled(6)
+            radius: win.chromeRadius(win.scaled(6), height)
             color: isCurrent || hover.hovered ? win.colors.codeBackground : "transparent"
 
             // GitHub marks the current entry with a bar of its accent.

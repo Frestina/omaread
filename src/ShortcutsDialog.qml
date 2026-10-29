@@ -65,7 +65,7 @@ Popup {
         color: win.colors.background
         border.width: 1
         border.color: win.colors.border
-        radius: win.scaled(12)
+        radius: win.chromeRadius(win.scaled(12), Math.min(width, height))
     }
 
     contentItem: ColumnLayout {
