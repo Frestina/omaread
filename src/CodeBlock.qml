@@ -40,8 +40,12 @@ Rectangle {
         TextEdit {
             id: code
             readonly property bool findable: true
-            text: panel.block.code
-            textFormat: TextEdit.PlainText
+            // Highlighted code is rich text, coloured by the palette's style
+            // sheet for its spans; a language it does not know stays plain.
+            text: panel.block.html
+                ? "<style>" + win.colors.syntax + "</style><div style=\"white-space: pre;\">" + panel.block.html + "</div>"
+                : panel.block.code
+            textFormat: panel.block.html ? TextEdit.RichText : TextEdit.PlainText
             readOnly: true
             selectByMouse: true
             activeFocusOnPress: false

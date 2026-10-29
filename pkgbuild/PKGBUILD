@@ -8,8 +8,8 @@ arch=('x86_64' 'aarch64')
 url='https://github.com/Frestina/omaread'
 license=('MIT')
 install='omaread.install'
-depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'cmark-gfm' 'xdg-desktop-portal')
-makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative')
+depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'cmark-gfm' 'syntax-highlighting' 'xdg-desktop-portal')
+makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative' 'cmark-gfm' 'syntax-highlighting')
 source=()
 sha256sums=()
 

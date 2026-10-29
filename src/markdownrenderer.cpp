@@ -1,5 +1,7 @@
 #include "markdownrenderer.h"
 
+#include "codehighlighter.h"
+
 #include <QList>
 #include <QRegularExpression>
 #include <QSet>
@@ -397,7 +399,10 @@ private:
             text.chop(1);
         const char *info = cmark_node_get_fence_info(node);
         const QString language = info ? QString::fromUtf8(info).section(QLatin1Char(' '), 0, 0) : QString();
-        add({{"type", "code"}, {"code", text}, {"language", language}});
+        add({{"type", "code"},
+             {"code", text},
+             {"language", language},
+             {"html", CodeHighlighter::html(text, language)}});
     }
 
     void table(cmark_node *node) {

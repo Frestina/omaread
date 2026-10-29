@@ -1,5 +1,7 @@
 #include "printdocument.h"
 
+#include "codehighlighter.h"
+
 #include <QRegularExpression>
 #include <QVariantMap>
 
@@ -150,11 +152,14 @@ private:
             if (level <= 2)
                 m_out += QStringLiteral("<hr style=\"margin-top: 4px; background-color: %1;\">").arg(border);
         } else if (type == QLatin1String("code")) {
+            QString code = block.value("html").toString();
+            if (code.isEmpty())
+                code = block.value("code").toString().toHtmlEscaped();
             m_out += QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"12\" bgcolor=\"%1\" "
                                     "style=\"margin-top: %2px;\"><tr><td>"
                                     "<p style=\"margin: 0px; white-space: pre-wrap;\"><code>%3</code></p>"
                                     "</td></tr></table>")
-                         .arg(codeBackground).arg(gap).arg(block.value("code").toString().toHtmlEscaped());
+                         .arg(codeBackground).arg(gap).arg(code);
         } else if (type == QLatin1String("rule")) {
             m_out += QStringLiteral("<hr style=\"margin-top: %1px; background-color: %2;\">").arg(gap).arg(border);
         } else if (type == QLatin1String("table")) {
@@ -277,6 +282,6 @@ QString PrintDocument::html(const QVariantList &blocks, const QHash<QString, QSi
 QString PrintDocument::styleSheet(const QString &codeFont) {
     return QStringLiteral("a { color: %1; text-decoration: none; }"
                           " code { font-family: '%2'; font-size: 9pt; background-color: %3; }"
-                          " th { font-weight: bold; }")
-        .arg(link, codeFont, codeBackground);
+                          " th { font-weight: bold; } %4")
+        .arg(link, codeFont, codeBackground, CodeHighlighter::styleSheet(false));
 }

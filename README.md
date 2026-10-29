@@ -15,6 +15,10 @@ task lists, strikethrough, autolinks and footnotes, plus GitHub's alerts
 (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`),
 and GitHub's emoji shortcodes, so `:tada:` shows 🎉.
 Headings, quotes, code panels and tables use github.com's sizes and spacing.
+Code blocks that name their language are highlighted by
+[KSyntaxHighlighting](https://invent.kde.org/frameworks/syntax-highlighting),
+which knows some three hundred, in GitHub's colours, or with an Omarchy theme in
+the colours its editor themes give each kind of token.
 Colours come from the current Omarchy theme, and fall back to GitHub's own
 light and dark palettes when there is none.
 
@@ -68,6 +72,7 @@ That size is remembered.
 - Qt 6: `qt6-base` (which includes printing), `qt6-declarative` (which includes Qt Quick Controls) and
   `qt6-svg` for SVG images and badges
 - `cmark-gfm`
+- `syntax-highlighting`, KDE's KSyntaxHighlighting, for code
 - `xdg-desktop-portal` and a portal backend
 
 ## Build and install
@@ -118,7 +123,7 @@ GitHub's list in [gemoji](https://github.com/github/gemoji).
 
 ## Not yet
 
-Syntax highlighting in code blocks, Mermaid diagrams and math.
+Mermaid diagrams and math.
 
 ## License
 

@@ -5,6 +5,7 @@
 
 #include "backend.h"
 #include "cli.h"
+#include "codehighlighter.h"
 #include "findhighlighter.h"
 #include "markdownrenderer.h"
 #include "printdocument.h"
@@ -190,6 +191,43 @@ private slots:
         const RenderedMarkdown rendered = render("```bash title=x\necho <hi>\n```\n");
         QCOMPARE(blockAt(rendered, 0).value("code").toString(), QStringLiteral("echo <hi>"));
         QCOMPARE(blockAt(rendered, 0).value("language").toString(), QStringLiteral("bash"));
+    }
+
+    void codeIsHighlightedByLanguage() {
+        const RenderedMarkdown rendered = render(
+            "```python\ndef f():\n    return \"<hi>\"  # note\n```\n\n```\nplain\n```\n\n```nosuchlanguage\nx\n```\n");
+        QCOMPARE(blockAt(rendered, 0).value("html").toString(),
+                 QStringLiteral("<span class=\"kw\">def</span> f():\n"
+                                "    <span class=\"kw\">return</span> <span class=\"str\">&quot;&lt;hi&gt;&quot;</span>"
+                                "  <span class=\"com\"># note</span>"));
+        // Without a language, or with one it does not know, code stays plain.
+        QCOMPARE(blockAt(rendered, 1).value("html").toString(), QString());
+        QCOMPARE(blockAt(rendered, 2).value("html").toString(), QString());
+        // Fences name languages by extension, file name or GitHub's aliases.
+        for (const char *language : {"sh", "console", "rs", "ts", "yml", "Dockerfile", "make", "c++"})
+            QVERIFY2(!CodeHighlighter::html(QStringLiteral("x = 1"), QLatin1String(language)).isEmpty(), language);
+    }
+
+    void codeColoursFollowThePalette() {
+        const QString light = CodeHighlighter::styleSheet(false);
+        QVERIFY(light.contains(QStringLiteral(".kw { color: #cf222e; }")));
+        QVERIFY(light.contains(QStringLiteral(".com { color: #59636e; }")));
+        // An Omarchy theme's colours, as its Helix theme uses them.
+        bool dark = false;
+        const QString themed = Backend::themeColors(
+            {{"background", "#101724"}, {"foreground", "#DEE2EC"}, {"magenta", "#B063BE"},
+             {"green", "#5AC875"}, {"muted", "#76849B"}},
+            false, &dark).value("syntax").toString();
+        QVERIFY(themed.contains(QStringLiteral(".kw { color: #b063be; }")));
+        QVERIFY(themed.contains(QStringLiteral(".str { color: #5ac875; }")));
+        QVERIFY(themed.contains(QStringLiteral(".com { color: #76849b; font-style: italic; }")));
+        QVERIFY(!themed.contains(QStringLiteral(".var ")));
+    }
+
+    void printedCodeIsHighlighted() {
+        const QString html = PrintDocument::html(render("```c\nint x;\n```\n").blocks, {}, 600);
+        QVERIFY(html.contains(QStringLiteral("<code><span class=\"ty\">int</span> x<span class=\"op\">;</span></code>")));
+        QVERIFY(PrintDocument::styleSheet(QStringLiteral("Mono")).contains(QStringLiteral(".kw { color: #cf222e; }")));
     }
 
     void shortcodesBecomeEmoji() {

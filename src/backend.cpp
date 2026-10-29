@@ -1,5 +1,6 @@
 #include "backend.h"
 
+#include "codehighlighter.h"
 #include "findhighlighter.h"
 #include "markdownrenderer.h"
 #include "printdocument.h"
@@ -487,6 +488,13 @@ QVariantMap Backend::themeColors(const QHash<QString, QString> &theme, bool syst
     use("important", "magenta");
     use("warning", "yellow");
     use("caution", "red");
+
+    // Code's colours, as a style sheet for its spans. Comments take the
+    // page's muted grey, mixed for the theme if it names none.
+    QHash<QString, QString> syntaxTheme = theme;
+    if (foreground.isValid())
+        syntaxTheme.insert(QStringLiteral("muted"), colors.value("muted").toString());
+    colors["syntax"] = CodeHighlighter::styleSheet(dark, syntaxTheme);
     return colors;
 }
 
