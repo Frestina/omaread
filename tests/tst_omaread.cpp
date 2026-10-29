@@ -348,6 +348,29 @@ private slots:
         QVERIFY(!figures.drawing());
     }
 
+    void diagramsTakeTheThemesColours() {
+        bool dark = false;
+        const QVariantMap colors = Backend::themeColors(
+            {{"background", "#101724"}, {"foreground", "#DEE2EC"}, {"blue", "#749FFF"},
+             {"green", "#5AC875"}, {"yellow", "#EDD77B"}},
+            false, &dark);
+        const QJsonObject config = QJsonDocument::fromJson(
+            Figures::style(QStringLiteral("mermaid"), colors, dark).toUtf8()).object();
+        QCOMPARE(config.value("theme").toString(), QStringLiteral("base"));
+        const QJsonObject variables = config.value("themeVariables").toObject();
+        // Pie slices in the theme's own colours, not its greys.
+        QCOMPARE(variables.value("pie1").toString(), QStringLiteral("#749fff"));
+        QCOMPARE(variables.value("pie2").toString(), QStringLiteral("#5ac875"));
+        QCOMPARE(variables.value("pie3").toString(), QStringLiteral("#edd77b"));
+        QCOMPARE(variables.value("pieSectionTextColor").toString(), QStringLiteral("#101724"));
+
+        // GitHub's palettes keep Mermaid's own themes, as github.com does.
+        const QJsonObject github = QJsonDocument::fromJson(
+            Figures::style(QStringLiteral("mermaid"), Backend::themeColors({}, true, &dark), true).toUtf8()).object();
+        QCOMPARE(github.value("theme").toString(), QStringLiteral("dark"));
+        QVERIFY(!github.value("themeVariables").toObject().contains("pie1"));
+    }
+
     void printedFormulasFitThePrintedText() {
         const auto figure = [](const QString &, const QString &, bool) {
             return QVariantMap{{"src", "file:///f.svg"}, {"width", 32.0}, {"height", 16.0}};

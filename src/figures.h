@@ -21,6 +21,10 @@ public:
     // Whether what draws a kind of figure, "math" or "mermaid", is installed.
     static bool canDraw(const QString &kind);
 
+    // The colours a figure is drawn in, as its program takes them: a colour
+    // for a formula, Mermaid's configuration for a diagram.
+    static QString style(const QString &kind, const QVariantMap &colors, bool darkMode);
+
     // The picture of a figure in the page's colours, as {src, width, height},
     // its size in CSS pixels at 16px text. Empty while it is not drawn yet,
     // and then it is wanted, or when it cannot be drawn.
@@ -45,7 +49,6 @@ private:
         QString style;
     };
 
-    QString style(const QString &kind, const QVariantMap &colors, bool darkMode) const;
     QString file(const Figure &figure) const;
     QProcess *start(const QString &kind, const QList<Figure> &figures);
     void finish(QProcess *process, const QList<Figure> &figures);

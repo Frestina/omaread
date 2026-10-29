@@ -70,7 +70,7 @@ bool Figures::canDraw(const QString &kind) {
 // colour, and a diagram in Mermaid's own light or dark theme on GitHub's
 // palettes, as github.com draws them, or in Mermaid's base theme coloured
 // from an Omarchy theme.
-QString Figures::style(const QString &kind, const QVariantMap &colors, bool darkMode) const {
+QString Figures::style(const QString &kind, const QVariantMap &colors, bool darkMode) {
     const auto color = [&colors](const char *name) { return colors.value(QLatin1String(name)).toString(); };
     if (kind == QLatin1String("math"))
         return color("foreground");
@@ -91,6 +91,17 @@ QString Figures::style(const QString &kind, const QVariantMap &colors, bool dark
         variables.insert("textColor", color("foreground"));
         variables.insert("noteBkgColor", color("codeBackground"));
         variables.insert("noteTextColor", color("foreground"));
+
+        // Pie slices in the theme's colours, which the base theme would mix
+        // from the panels' greys instead, with the page behind their labels.
+        const char *const slices[] = {"note", "tip", "warning", "important", "caution", "link"};
+        for (int index = 0; index < 12; ++index)
+            variables.insert(QStringLiteral("pie%1").arg(index + 1), color(slices[index % 6]));
+        variables.insert("pieSectionTextColor", background);
+        variables.insert("pieStrokeColor", background);
+        variables.insert("pieOuterStrokeColor", color("muted"));
+        variables.insert("pieTitleTextColor", color("foreground"));
+        variables.insert("pieLegendTextColor", color("foreground"));
     }
     return QString::fromUtf8(QJsonDocument(QJsonObject{{"theme", theme}, {"themeVariables", variables}})
                                  .toJson(QJsonDocument::Compact));
