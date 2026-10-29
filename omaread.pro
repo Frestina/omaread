@@ -1,4 +1,4 @@
-QT += core gui quick quickcontrols2 dbus
+QT += core gui widgets printsupport network quick quickcontrols2 dbus
 
 CONFIG += c++17 release
 TARGET = omaread
@@ -10,6 +10,7 @@ HEADERS += \
     src/backend.h \
     src/cli.h \
     src/markdownrenderer.h \
+    src/printdocument.h \
     src/systemtheme.h
 
 SOURCES += \
@@ -17,6 +18,7 @@ SOURCES += \
     src/backend.cpp \
     src/cli.cpp \
     src/markdownrenderer.cpp \
+    src/printdocument.cpp \
     src/systemtheme.cpp
 
 RESOURCES += src/resources.qrc

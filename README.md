@@ -39,6 +39,8 @@ without opening a window.
 
 - `Ctrl+O` opens a Markdown file through the portal picker. Dropping a file on
   the window works too.
+- `Ctrl+P` prints, or saves a PDF through the print dialog. The page is laid
+  out as on screen, in GitHub's light colours whatever the screen shows.
 - `Ctrl+E` opens the file in Omawrite, when it is installed. Omaread keeps
   showing the file and updates as you save.
 - `Ctrl+R` or `F5` reloads, though changes on disk are picked up by themselves.
@@ -57,7 +59,7 @@ That size is remembered.
 
 ## Requirements
 
-- Qt 6: `qt6-base`, `qt6-declarative` (which includes Qt Quick Controls) and
+- Qt 6: `qt6-base` (which includes printing), `qt6-declarative` (which includes Qt Quick Controls) and
   `qt6-svg` for SVG images and badges
 - `cmark-gfm`
 - `xdg-desktop-portal` and a portal backend

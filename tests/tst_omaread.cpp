@@ -3,6 +3,7 @@
 #include "backend.h"
 #include "cli.h"
 #include "markdownrenderer.h"
+#include "printdocument.h"
 
 namespace {
 const QUrl baseUrl = QUrl::fromLocalFile(QStringLiteral("/repo/docs/"));
@@ -179,6 +180,41 @@ private slots:
         const RenderedMarkdown rendered = render("![a](https://github.com/o/r/blob/main/a.png)\n");
         QCOMPARE(blockAt(rendered, 0).value("images").toList().at(0).toMap().value("src").toString(),
                  QStringLiteral("https://github.com/o/r/raw/main/a.png"));
+    }
+
+    void printedAlertsKeepTheirColourAndQuotesGreyOut() {
+        const QString html = PrintDocument::html(
+            render("> [!CAUTION]\n> Hot.\n\n> Plain.\n").blocks, {}, 600);
+        QVERIFY(html.contains(QStringLiteral("bgcolor=\"#d1242f\"")));
+        QVERIFY(html.contains(QStringLiteral("font-weight: bold;\">Caution</p>")));
+        QVERIFY(html.contains(QStringLiteral("color: #59636e;\">Plain.</p>")));
+        QVERIFY(!html.contains(QStringLiteral("color: #59636e;\">Hot.</p>")));
+    }
+
+    void printedListsKeepTheirMarkers() {
+        const QString html = PrintDocument::html(render("3. three\n   - [x] done\n").blocks, {}, 600);
+        QVERIFY(html.contains(QStringLiteral(">3.</td>")));
+        QVERIFY(html.contains(QStringLiteral(">☑</span></td>")));
+    }
+
+    void printedImagesFitThePage() {
+        const RenderedMarkdown rendered = render(
+            "![wide](wide.png)\n\n<img src=\"logo.svg\" width=\"100\">\n\n![gone](gone.png)\n");
+        const QHash<QString, QSize> sizes{{"file:///repo/docs/wide.png", QSize(2000, 1000)},
+                                          {"file:///repo/docs/logo.svg", QSize(50, 25)}};
+        const QString html = PrintDocument::html(rendered.blocks, sizes, 600);
+        QVERIFY(html.contains(QStringLiteral("src=\"file:///repo/docs/wide.png\" width=\"600\" height=\"300\"")));
+        QVERIFY(html.contains(QStringLiteral("src=\"file:///repo/docs/logo.svg\" width=\"100\" height=\"50\"")));
+        // An image that would not load prints its description.
+        QVERIFY(html.contains(QStringLiteral(">gone </p>")));
+    }
+
+    void everyImageIsLoadedForPrinting() {
+        const RenderedMarkdown rendered = render(
+            "![a](a.png) and text ![q](https://x.io/b.svg?a=1&b=2)\n\n| ![c](c.png) |\n|---|\n\n![a](a.png)\n");
+        QCOMPARE(PrintDocument::imageSources(rendered.blocks),
+                 (QStringList{"file:///repo/docs/a.png", "https://x.io/b.svg?a=1&b=2",
+                              "file:///repo/docs/c.png"}));
     }
 
     void themeColorsComeFromOmarchy() {

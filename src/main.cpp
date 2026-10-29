@@ -1,17 +1,18 @@
+#include <QApplication>
 #include <QFileInfo>
-#include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlError>
 #include <QQuickStyle>
 #include <QUrl>
+#include <QWindow>
 
 #include "backend.h"
 #include "cli.h"
 #include "systemtheme.h"
 
-#define OMAREAD_VERSION "0.1.0"
+#define OMAREAD_VERSION "0.2.0"
 
 int main(int argc, char *argv[]) {
     // Answered before the application exists, so they need no display.
@@ -25,7 +26,9 @@ int main(int argc, char *argv[]) {
     if (qgetenv("QT_QPA_PLATFORMTHEME") == "gtk3")
         qputenv("QT_QPA_PLATFORMTHEME", "xdgdesktopportal");
 
-    QGuiApplication app(argc, argv);
+    // A QApplication rather than a QGuiApplication, for the print dialog,
+    // which is a widget.
+    QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("omaread"));
     app.setApplicationVersion(QStringLiteral(OMAREAD_VERSION));
     app.setOrganizationName(QStringLiteral("omaread"));
@@ -55,6 +58,7 @@ int main(int argc, char *argv[]) {
         qCritical() << "Could not load the Omaread interface";
         return -1;
     }
+    backend.setParentWindow(qobject_cast<QWindow *>(engine.rootObjects().constFirst()));
 
     const QStringList args = app.arguments();
     if (args.size() > 1) {

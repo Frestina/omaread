@@ -133,6 +133,11 @@ ApplicationWindow {
     }
 
     Shortcut {
+        sequences: [StandardKey.Print]
+        onActivated: backend.printDocument()
+    }
+
+    Shortcut {
         sequences: ["Ctrl+R", "F5"]
         onActivated: backend.reload()
     }

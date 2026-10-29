@@ -6,11 +6,15 @@
 #include <QList>
 #include <QObject>
 #include <QPair>
+#include <QPointer>
 #include <QString>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
+
+class QPrinter;
+class QWindow;
 
 class Backend : public QObject {
     Q_OBJECT
@@ -49,6 +53,9 @@ public:
 
     void setDarkMode(bool darkMode);
     void setDesktopTextScale(qreal textScale);
+    void setParentWindow(QWindow *window);
+    // Lays the document out for paper and prints it, without asking.
+    void printTo(QPrinter &printer);
 
     static bool isMarkdown(const QString &path);
     static QHash<QString, QString> readTheme(const QString &path);
@@ -63,6 +70,7 @@ public:
     Q_INVOKABLE int anchorIndex(const QString &anchor) const;
     Q_INVOKABLE void edit();
     Q_INVOKABLE void copyText(const QString &text);
+    Q_INVOKABLE void printDocument();
     Q_INVOKABLE void increaseTextSize();
     Q_INVOKABLE void decreaseTextSize();
     Q_INVOKABLE void resetTextSize();
@@ -96,6 +104,7 @@ private:
     void watchTheme();
     QUrl baseUrl() const;
 
+    QPointer<QWindow> m_parentWindow;
     QString m_path;
     QUrl m_rootUrl;
     QByteArray m_contents;

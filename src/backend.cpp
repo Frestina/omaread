@@ -1,7 +1,9 @@
 #include "backend.h"
 
 #include "markdownrenderer.h"
+#include "printdocument.h"
 
+#include <QBuffer>
 #include <QClipboard>
 #include <QColor>
 #include <QDesktopServices>
@@ -9,11 +11,20 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QEventLoop>
 #include <QGuiApplication>
+#include <QImageReader>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QPageLayout>
+#include <QPrintDialog>
+#include <QPrinter>
 #include <QProcess>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QTextDocument>
 #include <QTextStream>
+#include <QWindow>
 
 namespace {
 // Browser zoom steps, so Ctrl+= and Ctrl+- feel as they do on github.com.
@@ -45,6 +56,67 @@ QString tomlValue(const QString &text) {
         return value;
     const int close = value.indexOf(quote, 1);
     return close < 0 ? value : value.mid(1, close - 1);
+}
+
+// An image for the printed page, and the size it shows at. An SVG is drawn
+// at four times that, so badges and logos stay sharp on paper.
+struct PrintImage {
+    QImage image;
+    QSize size;
+};
+
+PrintImage decodeImage(const QByteArray &data) {
+    QBuffer buffer;
+    buffer.setData(data);
+    buffer.open(QIODevice::ReadOnly);
+    QImageReader reader(&buffer);
+    if (!reader.canRead())
+        return {};
+    const QSize size = reader.size();
+    if (reader.format().startsWith("svg") && size.isValid())
+        reader.setScaledSize(size * 4);
+    const QImage image = reader.read();
+    return {image, size.isValid() ? size : image.size()};
+}
+
+// Every image the page names, from disk or the web. A web image that takes
+// longer than ten seconds is left out rather than holding up the print.
+QHash<QString, PrintImage> loadPrintImages(const QStringList &sources) {
+    QHash<QString, PrintImage> images;
+    QNetworkAccessManager network;
+    QList<QPair<QString, QNetworkReply *>> downloads;
+    for (const QString &source : sources) {
+        const QUrl url(source);
+        if (url.isLocalFile()) {
+            QFile file(url.toLocalFile());
+            if (file.open(QIODevice::ReadOnly))
+                images.insert(source, decodeImage(file.readAll()));
+        } else if (url.scheme() == QLatin1String("http") || url.scheme() == QLatin1String("https")) {
+            downloads.append({source, network.get(QNetworkRequest(url))});
+        }
+    }
+
+    if (!downloads.isEmpty()) {
+        QEventLoop loop;
+        QTimer::singleShot(10000, &loop, &QEventLoop::quit);
+        qsizetype remaining = downloads.size();
+        for (const auto &[source, reply] : std::as_const(downloads)) {
+            QObject::connect(reply, &QNetworkReply::finished, &loop, [&remaining, &loop]() {
+                if (--remaining == 0)
+                    loop.quit();
+            });
+        }
+        loop.exec();
+        for (const auto &[source, reply] : std::as_const(downloads)) {
+            if (reply->isFinished() && reply->error() == QNetworkReply::NoError)
+                images.insert(source, decodeImage(reply->readAll()));
+            reply->abort();
+            reply->deleteLater();
+        }
+    }
+
+    images.removeIf([](const auto &entry) { return entry.value().image.isNull(); });
+    return images;
 }
 
 // The folder holding .git above path, where GitHub roots links that start
@@ -226,6 +298,53 @@ void Backend::copyText(const QString &text) {
         return;
     QGuiApplication::clipboard()->setText(text);
     setStatus(QStringLiteral("Copied"));
+}
+
+void Backend::setParentWindow(QWindow *window) {
+    m_parentWindow = window;
+}
+
+void Backend::printDocument() {
+    if (m_blocks.isEmpty()) {
+        setStatus(QStringLiteral("There is nothing to print"));
+        return;
+    }
+
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setDocName(fileName());
+    QPrintDialog dialog(&printer);
+    dialog.setWindowTitle(QStringLiteral("Print %1").arg(fileName()));
+    dialog.winId();
+    if (dialog.windowHandle() && m_parentWindow)
+        dialog.windowHandle()->setTransientParent(m_parentWindow);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    printTo(printer);
+    setStatus(printer.outputFormat() == QPrinter::PdfFormat
+                  ? QStringLiteral("Saved %1").arg(QFileInfo(printer.outputFileName()).fileName())
+                  : QStringLiteral("Sent %1 to %2").arg(fileName(), printer.printerName()));
+}
+
+void Backend::printTo(QPrinter &printer) {
+    QTextDocument document;
+    QHash<QString, QSize> sizes;
+    const QHash<QString, PrintImage> images = loadPrintImages(PrintDocument::imageSources(m_blocks));
+    for (auto it = images.cbegin(); it != images.cend(); ++it) {
+        document.addResource(QTextDocument::ImageResource, QUrl(it.key()), it.value().image);
+        sizes.insert(it.key(), it.value().size);
+    }
+
+    // QTextDocument::print lays the page out in 96 dpi pixels, inside a 2 cm
+    // margin on the paper.
+    const qreal margin = 2 / 2.54 * 96;
+    const int width = int(printer.pageLayout().fullRect(QPageLayout::Inch).width() * 96 - 2 * margin);
+    QFont font(m_textFont);
+    font.setPointSizeF(11);
+    document.setDefaultFont(font);
+    document.setDefaultStyleSheet(PrintDocument::styleSheet(m_codeFont));
+    document.setHtml(PrintDocument::html(m_blocks, sizes, width));
+    document.print(&printer);
 }
 
 void Backend::setStatus(const QString &status) {
