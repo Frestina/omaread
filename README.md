@@ -98,9 +98,8 @@ without opening a window.
 - `Up`/`Down` or `j`/`k` scroll, as do `Page Up`/`Page Down` and `Space`.
   `Home`/`End` or `g`/`G` jump to the top and bottom, and once the top is a
   whole window out of sight, a round button at the bottom right glides back
-  to it. A touchpad moves the
-  page twice as far as your fingers go, and a mouse wheel glides three lines a
-  notch, as in a browser and in Omawrite.
+  to it. A touchpad moves the page twice as far as your fingers go, and a
+  mouse wheel glides three lines a notch, as in a browser and in Omawrite.
 - `Super+F` or `F11` toggles fullscreen.
 - `Ctrl+W` or `Ctrl+Q` closes the window.
 
