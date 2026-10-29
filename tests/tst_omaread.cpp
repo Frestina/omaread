@@ -601,6 +601,10 @@ private slots:
                  QUrl("file:///repo/README.md#use"));
         QCOMPARE(MarkdownRenderer::resolveUrl("/src/main.cpp", baseUrl, rootUrl),
                  QUrl("file:///repo/src/main.cpp"));
+        QCOMPARE(MarkdownRenderer::resolveUrl("/../../etc/a b.png#top", baseUrl, rootUrl),
+                 QUrl("file:///repo/etc/a%20b.png#top"));
+        QCOMPARE(MarkdownRenderer::resolveUrl("/docs/../src/?x=1", baseUrl, rootUrl), QUrl("file:///repo/src/?x=1"));
+        QCOMPARE(MarkdownRenderer::resolveUrl("/docs/..", baseUrl, rootUrl), QUrl("file:///repo/"));
         QCOMPARE(MarkdownRenderer::resolveUrl("/src/main.cpp", baseUrl, QUrl()),
                  QUrl("file:///src/main.cpp"));
         QCOMPARE(MarkdownRenderer::resolveUrl("//cdn.io/a.png", baseUrl, rootUrl),

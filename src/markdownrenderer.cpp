@@ -1178,8 +1178,26 @@ QUrl MarkdownRenderer::resolveUrl(const QString &url, const QUrl &baseUrl, const
     const QUrl parsed(trimmed);
     if (!parsed.scheme().isEmpty())
         return parsed;
-    if (trimmed.startsWith(QLatin1Char('/')) && rootUrl.isValid())
-        return rootUrl.resolved(QUrl(trimmed.mid(1)));
+    // As a site's root, which '..' does not climb above, as on GitHub.
+    if (trimmed.startsWith(QLatin1Char('/')) && rootUrl.isValid()) {
+        QStringList segments;
+        const QStringList parts = parsed.path().mid(1).split(QLatin1Char('/'));
+        for (const QString &part : parts) {
+            if (part == QLatin1String("..")) {
+                if (!segments.isEmpty())
+                    segments.removeLast();
+            } else if (part != QLatin1String(".")) {
+                segments.append(part);
+            }
+        }
+        // One that ends in . or .. is a folder.
+        if (parts.last() == QLatin1String("..") || parts.last() == QLatin1String("."))
+            segments.append(QString());
+        QUrl inRoot = parsed;
+        inRoot.setScheme(QStringLiteral("file"));
+        inRoot.setPath(rootUrl.path() + segments.join(QLatin1Char('/')));
+        return inRoot;
+    }
     return baseUrl.resolved(parsed);
 }
 
