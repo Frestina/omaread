@@ -768,12 +768,12 @@ private slots:
             QCoreApplication::sendEvent(view.window, &wheel);
         };
 
-        // Two fingers move the page as far as they go.
+        // Two fingers move the page twice as far as they go.
         scroll(QPoint(0, -50), QPoint(0, -50));
-        QCOMPARE(flick->property("contentY").toReal(), 50.0);
+        QCOMPARE(flick->property("contentY").toReal(), 100.0);
         // A wheel notch glides three lines of 40px.
         scroll(QPoint(), QPoint(0, -120));
-        QTRY_COMPARE(flick->property("contentY").toReal(), 170.0);
+        QTRY_COMPARE(flick->property("contentY").toReal(), 220.0);
     }
 
     void headingsKeepTheirPlainText() {

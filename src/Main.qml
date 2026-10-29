@@ -659,13 +659,16 @@ ApplicationWindow {
         // Scrolling as Omawrite does it. Flickable moves a touchpad's
         // scroll less than half the way the fingers go, and a wheel notch by
         // a flick sized by the small application font, which crawls next to
-        // a browser. A touchpad moves the page as far as the fingers instead,
-        // and a notch follows Chromium's wheel physics
+        // a browser. A touchpad moves the page further than the fingers go
+        // instead, and a notch follows Chromium's wheel physics
         // (cc::ScrollOffsetAnimationCurve): 3 lines of 40px towards a running
         // target, quicker the more is outstanding, and a notch landing
         // mid-animation carries the current velocity into the new curve, so
         // sustained spinning picks up speed.
         readonly property real wheelStep: win.scaled(120)
+        // Moving the page only as far as the fingers go still reads as slow
+        // on a laptop's touchpad, so it goes twice as far.
+        readonly property real touchpadSpeed: 2
 
         FrameAnimation {
             id: wheelScroll
@@ -763,7 +766,7 @@ ApplicationWindow {
                 scrollLinger.restart();
                 if (wheel.pixelDelta.y !== 0) {
                     wheelScroll.stop();
-                    flick.contentY = flick.clampContentY(flick.contentY - wheel.pixelDelta.y);
+                    flick.contentY = flick.clampContentY(flick.contentY - wheel.pixelDelta.y * flick.touchpadSpeed);
                 } else {
                     flick.scrollByWheel(wheel);
                 }
