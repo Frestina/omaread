@@ -11,6 +11,9 @@ Button {
     implicitWidth: 42
     implicitHeight: 42
     padding: 0
+    // A click leaves the keys where they were: with the page, to scroll it,
+    // or in the find field.
+    focusPolicy: Qt.NoFocus
 
     Keys.onReturnPressed: clicked()
     Keys.onEnterPressed: clicked()

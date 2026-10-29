@@ -747,6 +747,35 @@ private slots:
         QTRY_COMPARE(flick->property("contentY").toReal(), 0.0);
     }
 
+    void scrollingFollowsTheFingersAndTheWheel() {
+        QTemporaryDir dir;
+        const QString path = dir.filePath("long.md");
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        for (int i = 0; i < 100; ++i)
+            file.write("A paragraph that takes up a line or two of the page.\n\n");
+        file.close();
+
+        Window view;
+        QVERIFY(view.window);
+        view.backend.open(QUrl::fromLocalFile(path));
+        QObject *flick = view.find<QObject>("flick");
+        QTRY_VERIFY(flick->property("contentHeight").toReal() > 2000);
+        const QPointF middle(view.window->width() / 2.0, view.window->height() / 2.0);
+        const auto scroll = [&](QPoint pixels, QPoint angle) {
+            QWheelEvent wheel(middle, view.window->mapToGlobal(middle), pixels, angle, Qt::NoButton,
+                              Qt::NoModifier, pixels.isNull() ? Qt::NoScrollPhase : Qt::ScrollUpdate, false);
+            QCoreApplication::sendEvent(view.window, &wheel);
+        };
+
+        // Two fingers move the page as far as they go.
+        scroll(QPoint(0, -50), QPoint(0, -50));
+        QCOMPARE(flick->property("contentY").toReal(), 50.0);
+        // A wheel notch glides three lines of 40px.
+        scroll(QPoint(), QPoint(0, -120));
+        QTRY_COMPARE(flick->property("contentY").toReal(), 170.0);
+    }
+
     void headingsKeepTheirPlainText() {
         const QVariantMap heading = blockAt(render("# Size of `n` and $x$ :tada:\n"), 0);
         QCOMPARE(heading.value("text").toString(), QStringLiteral("Size of n and x 🎉"));
@@ -836,6 +865,28 @@ private slots:
         QTest::keyClick(view.window, Qt::Key_O, Qt::ControlModifier | Qt::ShiftModifier);
         QVERIFY(view.backend.outlineOpen());
         QVERIFY(!view.find("outlineButton")->isEnabled());
+
+        // However it is opened, closed or used, the keys still scroll the page.
+        const auto keysScroll = [&view]() {
+            QObject *flick = view.find<QObject>("flick");
+            QMetaObject::invokeMethod(view.window, "scrollTo", Q_ARG(QVariant, 0.0));
+            QTest::keyClick(view.window, Qt::Key_J);
+            return flick->property("contentY").toReal() > 0;
+        };
+        view.backend.open(QUrl::fromLocalFile(path));
+        QTRY_VERIFY(outline->isVisible());
+        view.click(view.findShown("outlineEntry1"));
+        QVERIFY(keysScroll());
+        view.click(view.find("outlineClose"));
+        QTRY_VERIFY(!outline->isVisible());
+        QVERIFY(keysScroll());
+        view.click(view.find("outlineButton"));
+        QTRY_VERIFY(outline->isVisible());
+        QVERIFY(keysScroll());
+        view.click(view.find("outlineButton"));
+        QTRY_VERIFY(!outline->isVisible());
+        QVERIFY(keysScroll());
+        view.backend.setOutlineOpen(true);
 
         // Ctrl+Shift+O hides it again.
         view.backend.open(QUrl::fromLocalFile(path));

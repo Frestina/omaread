@@ -96,7 +96,9 @@ without opening a window.
   to the next match, `Shift+Enter` or `Ctrl+Shift+G` to the one before, and
   `Esc` closes. A match in a closed `<details>` opens it.
 - `Up`/`Down` or `j`/`k` scroll, as do `Page Up`/`Page Down` and `Space`.
-  `Home`/`End` or `g`/`G` jump to the top and bottom.
+  `Home`/`End` or `g`/`G` jump to the top and bottom. A touchpad moves the
+  page as far as your fingers go, and a mouse wheel glides three lines a
+  notch, as in a browser and in Omawrite.
 - `Super+F` or `F11` toggles fullscreen.
 - `Ctrl+W` or `Ctrl+Q` closes the window.
 

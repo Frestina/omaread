@@ -64,6 +64,7 @@ Rectangle {
         }
 
         SearchIconButton {
+            objectName: "outlineClose"
             anchors {
                 right: parent.right
                 rightMargin: win.scaled(4)
