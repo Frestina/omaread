@@ -23,7 +23,7 @@ optdepends=(
   'mermaid-cli: draw Mermaid diagrams'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('6694684159a74cd0e2bcd8926a1e1db8d66a1adcaa83a38c2697d44f6c175803')
 
 build() {
   cd "$pkgname-$pkgver"
