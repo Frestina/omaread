@@ -25,6 +25,9 @@ ApplicationWindow {
     property string hoveredLink: ""
     property var selectionOwner: null
     property real savedY: 0
+    // The <details> opened or closed by hand, by id; the rest are as the file
+    // has them.
+    property var detailsState: ({})
 
     Material.theme: backend.darkMode ? Material.Dark : Material.Light
     Material.accent: colors.link
@@ -56,6 +59,27 @@ ApplicationWindow {
             + "<div style=\"line-height: " + Math.round(size * lineHeight) + "px;\">" + html + "</div>";
     }
 
+    function detailsOpen(id, initial) {
+        var state = detailsState[id];
+        return state === undefined ? initial : state;
+    }
+
+    // Opens every <details> a block is folded away in.
+    function unfold(block) {
+        var state = Object.assign({}, detailsState);
+        for (var i = 0; i < block.containers.length; ++i) {
+            if (block.containers[i].kind === "details")
+                state[block.containers[i].id] = true;
+        }
+        detailsState = state;
+    }
+
+    function toggleDetails(id, initial) {
+        var state = Object.assign({}, detailsState);
+        state[id] = !detailsOpen(id, initial);
+        detailsState = state;
+    }
+
     function calloutColor(kind) {
         return colors[kind] || colors.border;
     }
@@ -85,6 +109,12 @@ ApplicationWindow {
         var item = index >= 0 ? blocks.itemAt(index) : null;
         if (!item)
             return;
+        // A heading inside a closed <details> opens it, then is laid out.
+        if (item.folded) {
+            unfold(item.block);
+            Qt.callLater(scrollToAnchor, anchor);
+            return;
+        }
         scrollTo(page.y + item.y + item.gapTop - scaled(16));
     }
 
@@ -102,6 +132,9 @@ ApplicationWindow {
         function onDocumentLoaded(anchor, position) {
             win.selectionOwner = null;
             win.hoveredLink = "";
+            // A reload keeps what was opened; another file starts afresh.
+            if (position >= 0)
+                win.detailsState = {};
             // Wait for the blocks to be laid out before moving through them.
             if (anchor)
                 Qt.callLater(win.scrollToAnchor, anchor);

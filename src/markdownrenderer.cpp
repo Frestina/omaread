@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <optional>
 
 #include <cmark-gfm.h>
 #include <cmark-gfm-core-extensions.h>
@@ -29,6 +30,8 @@ constexpr int headingGap = 24;
 constexpr int ruleGap = 24;
 constexpr int tightItemGap = 4;
 constexpr int calloutTitleGap = 8;
+// A <details> shows its content straight under the summary, as on GitHub.
+constexpr int summaryGap = 0;
 
 QString literal(cmark_node *node) {
     const char *text = cmark_node_get_literal(node);
@@ -137,7 +140,7 @@ QString emojifyHtml(const QString &html) {
 }
 
 struct Container {
-    QString kind;        // "quote" or "item"
+    QString kind;        // "quote", "item" or "details"
     int id = 0;
     QString callout;     // quote: the GitHub alert it is, if any
     QString marker;      // item: "•", "1." and so on; empty for a task
@@ -145,6 +148,7 @@ struct Container {
     int listId = 0;      // item: the list it belongs to
     bool tight = true;   // item: whether that list is tight
     bool fresh = true;   // item: nothing shown inside it yet, so the marker is due
+    bool open = false;   // details: open to begin with
 };
 
 class Builder {
@@ -153,6 +157,7 @@ public:
 
     void document(cmark_node *document) {
         children(document);
+        flushDetails();
         finish();
     }
 
@@ -289,6 +294,8 @@ private:
         container.kind = QStringLiteral("quote");
         container.id = m_nextId++;
         container.callout = takeCalloutMarker(node);
+        flushDetails();
+        const qsizetype depth = m_containers.size();
         m_containers.append(container);
 
         if (!container.callout.isEmpty()) {
@@ -297,7 +304,9 @@ private:
             add({{"type", "calloutTitle"}, {"kind", container.callout}, {"label", label}});
         }
         children(node);
-        m_containers.removeLast();
+        // A <details> left open inside the quote closes with it.
+        flushDetails();
+        m_containers.resize(depth);
     }
 
     // The alert a quote opens with, `[!NOTE]` alone on its first line, taken
@@ -351,6 +360,8 @@ private:
                 ++depth;
         }
 
+        flushDetails();
+        const qsizetype outer = m_containers.size();
         int number = cmark_node_get_list_start(node);
         for (cmark_node *item = cmark_node_first_child(node); item; item = cmark_node_next(item), ++number) {
             Container container;
@@ -370,6 +381,9 @@ private:
 
             m_containers.append(container);
             children(item);
+            // A <details> left open inside the item closes with it.
+            flushDetails();
+            m_containers.resize(outer + 1);
             // An empty item still shows its marker.
             if (m_containers.constLast().fresh)
                 add({{"type", "paragraph"}, {"html", QString()}});
@@ -415,9 +429,68 @@ private:
         add({{"type", "table"}, {"aligns", aligns}, {"header", header}, {"rows", rows}});
     }
 
+    // <details> folds away what follows it, Markdown or HTML, up to
+    // </details>, leaving its <summary> to open it with.
     void htmlBlock(cmark_node *node) {
+        static const QRegularExpression detailsTag(
+            QStringLiteral(R"re(<(details)\b([^>]*)>|<(/details)\s*>|<summary\b[^>]*>(.*?)</summary\s*>)re"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
         const QString raw = literal(node);
+        qsizetype last = 0;
+        auto it = detailsTag.globalMatch(raw);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch match = it.next();
+            htmlFragment(raw.mid(last, match.capturedStart() - last));
+            last = match.capturedEnd();
+            if (!match.captured(1).isEmpty())
+                openDetails(match.captured(2));
+            else if (!match.captured(3).isEmpty())
+                closeDetails();
+            else
+                summary(cleanHtml(match.captured(4)));
+        }
+        htmlFragment(raw.mid(last));
+    }
 
+    void openDetails(const QString &attributes) {
+        flushDetails();
+        static const QRegularExpression open(QStringLiteral(R"re(\bopen\b)re"),
+                                             QRegularExpression::CaseInsensitiveOption);
+        Container details;
+        details.kind = QStringLiteral("details");
+        details.id = m_nextId++;
+        details.open = open.match(attributes).hasMatch();
+        m_pendingDetails = details;
+    }
+
+    // The summary shows whether its <details> is open or not; the blocks
+    // after it go inside.
+    void summary(const QString &html) {
+        if (!m_pendingDetails) {
+            add({{"type", "paragraph"}, {"html", html}, {"align", currentAlign()}});
+            return;
+        }
+        const Container details = *m_pendingDetails;
+        m_pendingDetails.reset();
+        add({{"type", "summary"}, {"html", html}, {"details", details.id}, {"open", details.open}});
+        m_containers.append(details);
+    }
+
+    // A <details> without a <summary> is called "Details", as on GitHub.
+    void flushDetails() {
+        if (m_pendingDetails)
+            summary(QStringLiteral("Details"));
+    }
+
+    void closeDetails() {
+        flushDetails();
+        // Only a <details> opened at this level closes here; one opened in a
+        // quote or list item has closed with it.
+        if (!m_containers.isEmpty() && m_containers.constLast().kind == QLatin1String("details"))
+            m_containers.removeLast();
+    }
+
+    void htmlFragment(const QString &raw) {
         // `<div align="center">` on its own, then Markdown, then `</div>`:
         // GitHub centres what is between, so carry the alignment over.
         static const QRegularExpression opening(
@@ -656,6 +729,8 @@ private:
     // Every block carries the quotes and list items it sits in, outermost
     // first, so the view can draw their bars and markers beside it.
     void add(QVariantMap block) {
+        if (block.value("type") != QLatin1String("summary"))
+            flushDetails();
         QVariantList containers;
         for (Container &container : m_containers) {
             const bool showMarker = container.kind == QLatin1String("item") && container.fresh;
@@ -665,7 +740,8 @@ private:
                                           {"listId", container.listId},
                                           {"tight", container.tight},
                                           {"marker", showMarker ? container.marker : QString()},
-                                          {"task", showMarker ? container.task : -1}});
+                                          {"task", showMarker ? container.task : -1},
+                                          {"open", container.open}});
             container.fresh = false;
         }
         block["containers"] = containers;
@@ -716,6 +792,9 @@ private:
             return paragraphGap;
         if (previousType == QLatin1String("calloutTitle"))
             return calloutTitleGap;
+        if (previousType == QLatin1String("summary")
+            && sharedContainers(previous, block) < block.value("containers").toList().size())
+            return summaryGap;
 
         // Blocks in the same list, in the same item or the next: a tight list
         // keeps them close.
@@ -739,6 +818,8 @@ private:
     QSet<int> m_referencedFootnotes;
     int m_footnoteCount = 0;
     QStringList m_alignStack;
+    // A <details> waiting for its <summary>.
+    std::optional<Container> m_pendingDetails;
     int m_footnoteListId = 0;
     int m_footnoteDepth = 0;
     int m_nextId = 1;

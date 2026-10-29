@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Shapes
 
 // One block of the document, inset by the quotes and list items it sits in,
 // with their bars and markers drawn beside it.
@@ -24,7 +25,9 @@ Item {
         var out = [];
         for (var i = 0; i < containers.length; ++i) {
             out.push(x);
-            x += containers[i].kind === "quote" ? quoteIndent : itemIndent;
+            x += containers[i].kind === "quote" ? quoteIndent
+               : containers[i].kind === "item" ? itemIndent
+               : 0;
         }
         out.push(x);
         return out;
@@ -34,7 +37,11 @@ Item {
     readonly property real firstBaseline: content.item && content.item.firstBaseline !== undefined
         ? content.item.firstBaseline : Math.round(textSize * 1.15)
 
-    height: gapTop + content.height
+    // Inside a <details> that is closed.
+    readonly property bool folded: containers.some(c => c.kind === "details" && !win.detailsOpen(c.id, c.open))
+
+    visible: !folded
+    height: folded ? 0 : gapTop + content.height
 
     // Quote bars. A bar the block before shares runs up through the gap, so
     // a quote reads as one.
@@ -118,6 +125,7 @@ Item {
             case "table": return tableBlock;
             case "images": return imagesBlock;
             case "calloutTitle": return calloutTitleBlock;
+            case "summary": return summaryBlock;
             default: return textBlock;
             }
         }
@@ -224,6 +232,56 @@ Item {
                 font.family: backend.textFont
                 font.pixelSize: win.bodySize
                 font.weight: Font.Bold
+            }
+        }
+    }
+
+    Component {
+        id: summaryBlock
+
+        // A <details> summary, with GitHub's triangle; a click anywhere on it
+        // opens or closes what it folds.
+        Item {
+            readonly property bool open: win.detailsOpen(root.block.details, root.block.open)
+            readonly property real firstBaseline: summaryText.firstBaseline
+            implicitHeight: summaryText.implicitHeight
+
+            // Pointing right when closed and down when open, centred on the
+            // middle of the lower-case letters.
+            Shape {
+                id: triangle
+                readonly property real side: Math.round(root.textSize * 0.5)
+                x: Math.round(root.textSize * 0.1)
+                y: Math.round(summaryText.firstBaseline - root.textSize * 0.3 - side / 2)
+                width: side
+                height: side
+                rotation: parent.open ? 90 : 0
+                preferredRendererType: Shape.CurveRenderer
+
+                ShapePath {
+                    strokeColor: "transparent"
+                    fillColor: root.muted ? root.colors.muted : root.colors.foreground
+                    startX: 0
+                    startY: 0
+                    PathLine { x: triangle.side; y: triangle.side / 2 }
+                    PathLine { x: 0; y: triangle.side }
+                    PathLine { x: 0; y: 0 }
+                }
+            }
+
+            RichText {
+                id: summaryText
+                x: Math.round(root.textSize * 1.1)
+                width: parent.width - x
+                html: root.block.html
+                size: root.textSize
+                color: root.muted ? root.colors.muted : root.colors.foreground
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: win.toggleDetails(root.block.details, root.block.open)
             }
         }
     }

@@ -141,12 +141,45 @@ private slots:
 
     void htmlLosesScriptsAndComments() {
         const RenderedMarkdown rendered = render(
-            "<!-- hidden -->\n\n<p>Hi<script>alert(1)</script><style>p{}</style></p>\n\n"
-            "<details>\n<summary>More</summary>\n\nInside\n\n</details>\n");
-        QCOMPARE(rendered.blocks.size(), 3);
+            "<!-- hidden -->\n\n<p>Hi<script>alert(1)</script><style>p{}</style></p>\n");
+        QCOMPARE(rendered.blocks.size(), 1);
         QCOMPARE(blockAt(rendered, 0).value("html").toString(), QStringLiteral("<p>Hi</p>"));
-        QCOMPARE(blockAt(rendered, 1).value("html").toString(), QStringLiteral("<p><b>▾ More</b></p>"));
-        QCOMPARE(blockAt(rendered, 2).value("html").toString(), QStringLiteral("Inside"));
+    }
+
+    void detailsFoldTheirContent() {
+        const RenderedMarkdown rendered = render(
+            "<details>\n<summary>More <b>here</b></summary>\n\nText\n\n# Inside\n\n</details>\n\nAfter\n");
+        QCOMPARE(rendered.blocks.size(), 4);
+        const QVariantMap summary = blockAt(rendered, 0);
+        QCOMPARE(summary.value("type").toString(), QStringLiteral("summary"));
+        QCOMPARE(summary.value("html").toString(), QStringLiteral("More <b>here</b>"));
+        QCOMPARE(summary.value("open").toBool(), false);
+        QCOMPARE(summary.value("containers").toList().size(), 0);
+        const QVariantMap details = container(blockAt(rendered, 1), 0);
+        QCOMPARE(details.value("kind").toString(), QStringLiteral("details"));
+        QCOMPARE(details.value("id"), summary.value("details"));
+        QCOMPARE(details.value("open").toBool(), false);
+        QCOMPARE(blockAt(rendered, 1).value("gap").toInt(), 0);
+        QCOMPARE(container(blockAt(rendered, 2), 0).value("id"), summary.value("details"));
+        QCOMPARE(blockAt(rendered, 3).value("containers").toList().size(), 0);
+        QCOMPARE(rendered.anchors.value("inside"), 2);
+    }
+
+    void detailsWithoutMarkdownOrSummary() {
+        const RenderedMarkdown rendered = render(
+            "<details open><summary>All HTML</summary>\n<p>Body :tada:</p>\n</details>\n\n"
+            "- <details>\n\n  Untitled\n\nOutside\n");
+        QCOMPARE(rendered.blocks.size(), 5);
+        QCOMPARE(blockAt(rendered, 0).value("open").toBool(), true);
+        QCOMPARE(blockAt(rendered, 1).value("html").toString(), QStringLiteral("<p>Body 🎉</p>"));
+        QCOMPARE(container(blockAt(rendered, 1), 0).value("open").toBool(), true);
+        // No summary: GitHub calls it "Details". Left open in a list item, it
+        // closes with the item.
+        QCOMPARE(blockAt(rendered, 2).value("type").toString(), QStringLiteral("summary"));
+        QCOMPARE(blockAt(rendered, 2).value("html").toString(), QStringLiteral("Details"));
+        QCOMPARE(container(blockAt(rendered, 2), 0).value("marker").toString(), QStringLiteral("•"));
+        QCOMPARE(container(blockAt(rendered, 3), 1).value("kind").toString(), QStringLiteral("details"));
+        QCOMPARE(blockAt(rendered, 4).value("containers").toList().size(), 0);
     }
 
     void codeBlocksKeepTheirLanguage() {
@@ -209,6 +242,13 @@ private slots:
         const QString html = PrintDocument::html(render("3. three\n   - [x] done\n").blocks, {}, 600);
         QVERIFY(html.contains(QStringLiteral(">3.</td>")));
         QVERIFY(html.contains(QStringLiteral(">☑</span></td>")));
+    }
+
+    void printedDetailsAreOpen() {
+        const QString html = PrintDocument::html(
+            render("<details>\n<summary>More</summary>\n\nHidden on screen\n\n</details>\n").blocks, {}, 600);
+        QVERIFY(html.contains(QStringLiteral(">▼</span>&nbsp; More</p>")));
+        QVERIFY(html.contains(QStringLiteral(">Hidden on screen</p>")));
     }
 
     void printedImagesFitThePage() {

@@ -24,8 +24,9 @@ READMEs read as they would in their repository:
   resolves from the root of the git repository the file is in.
 - Badges and screenshots load from the web, and GIFs play.
 - HTML such as `<p align="center"><img width="200" …></p>`, `<div align="center">`
-  and `<details>` is honoured. `<details>` always shows open, and scripts and
-  styles are dropped.
+  and `<details>` is honoured, and scripts and styles are dropped. `<details>`
+  folds as on GitHub: closed unless it says `open`, and a click on its summary
+  opens or closes it. A link to a heading inside opens it, and it prints open.
 - A link to another Markdown file opens it in the same window. `Alt+Left` comes
   back to where you were. Links to `#headings` and footnotes scroll there, and
   web links open in the browser.
@@ -113,8 +114,7 @@ GitHub's list in [gemoji](https://github.com/github/gemoji).
 
 ## Not yet
 
-Syntax highlighting in code blocks, find in page, folding `<details>`, Mermaid
-diagrams and math.
+Syntax highlighting in code blocks, find in page, Mermaid diagrams and math.
 
 ## License
 

@@ -60,10 +60,14 @@ private:
             }
 
             int end = index + 1;
-            if (container.value("kind") == QLatin1String("quote")) {
+            const QString kind = container.value("kind").toString();
+            if (kind == QLatin1String("quote") || kind == QLatin1String("details")) {
                 while (end < to && containerAt(blocks.at(end), depth).value("id") == container.value("id"))
                     ++end;
-                quote(blocks, index, end, depth, width, gap, container.value("callout").toString(), quiet);
+                if (kind == QLatin1String("quote"))
+                    quote(blocks, index, end, depth, width, gap, container.value("callout").toString(), quiet);
+                else
+                    details(blocks, index, end, depth, width, gap, quiet);
             } else {
                 while (end < to && containerAt(blocks.at(end), depth).value("kind") == QLatin1String("item")
                        && containerAt(blocks.at(end), depth).value("listId") == container.value("listId"))
@@ -82,6 +86,15 @@ private:
                      .arg(gap).arg(barWidth).arg(bar).arg(quoteIndent);
         // A plain quote greys its text; an alert keeps it.
         range(blocks, from, to, depth + 1, width - barWidth - quoteIndent, quiet || callout.isEmpty());
+        m_out += QLatin1String("</td></tr></table>");
+    }
+
+    // Paper does not fold, so every <details> prints open.
+    void details(const QVariantList &blocks, int from, int to, int depth, int width, int gap, bool quiet) {
+        m_out += QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top: %1px;\">"
+                                "<tr><td>")
+                     .arg(gap);
+        range(blocks, from, to, depth + 1, width, quiet);
         m_out += QLatin1String("</td></tr></table>");
     }
 
@@ -151,6 +164,9 @@ private:
             for (const QVariant &image : block.value("images").toList())
                 m_out += imageTag(image.toMap(), width) + QLatin1Char(' ');
             m_out += QLatin1String("</p>");
+        } else if (type == QLatin1String("summary")) {
+            m_out += QStringLiteral("<p style=\"%1\"><span style=\"font-size: 7pt;\">▼</span>&nbsp; %2</p>")
+                         .arg(style, block.value("html").toString());
         } else if (type == QLatin1String("calloutTitle")) {
             m_out += QStringLiteral("<p style=\"%1 color: %2; font-weight: bold;\">%3</p>")
                          .arg(style, calloutColors.value(block.value("kind").toString(), foreground),
