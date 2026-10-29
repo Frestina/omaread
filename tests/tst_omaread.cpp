@@ -311,6 +311,43 @@ private slots:
         QVERIFY(!figures.drawing());
     }
 
+    void mermaidBlocksBecomeDiagrams() {
+        const QByteArray markdown = "```mermaid\ngraph LR\n  A --> B\n```\n";
+        // No picture yet: the source shows as code.
+        const RenderedMarkdown plain = render(markdown.constData());
+        QCOMPARE(blockAt(plain, 0).value("type").toString(), QStringLiteral("code"));
+        QCOMPARE(blockAt(plain, 0).value("language").toString(), QStringLiteral("mermaid"));
+        QCOMPARE(plain.figures, 1);
+
+        const auto figure = [](const QString &kind, const QString &source, bool) {
+            return kind == QLatin1String("mermaid") && source == QLatin1String("graph LR\n  A --> B")
+                ? QVariantMap{{"src", "file:///d.png"}, {"width", 120.0}, {"height", 60.0}}
+                : QVariantMap();
+        };
+        const QVariantMap block = blockAt(MarkdownRenderer::render(markdown, baseUrl, rootUrl, figure), 0);
+        QCOMPARE(block.value("type").toString(), QStringLiteral("images"));
+        QCOMPARE(block.value("align").toString(), QStringLiteral("center"));
+        QCOMPARE(block.value("images").toList().at(0).toMap().value("src").toString(), QStringLiteral("file:///d.png"));
+    }
+
+    void diagramsAreDrawnByMermaid() {
+        if (!Figures::canDraw(QStringLiteral("mermaid")))
+            QSKIP("mermaid-cli is not installed");
+        Figures figures;
+        const QVariantMap colors{{"background", "#ffffff"}, {"foreground", "#1f2328"}};
+        QVERIFY(figures.picture("mermaid", "graph LR\n  A --> B", true, colors, false).isEmpty());
+        QVERIFY(figures.picture("mermaid", "not a diagram", true, colors, false).isEmpty());
+        figures.drawWantedNow(60000);
+
+        // One that is not Mermaid spoils no other.
+        const QVariantMap picture = figures.picture("mermaid", "graph LR\n  A --> B", true, colors, false);
+        QVERIFY(QFile::exists(QUrl(picture.value("src").toString()).toLocalFile()));
+        QVERIFY(picture.value("width").toReal() > picture.value("height").toReal());
+        QVERIFY(figures.picture("mermaid", "not a diagram", true, colors, false).isEmpty());
+        figures.drawWanted();
+        QVERIFY(!figures.drawing());
+    }
+
     void printedFormulasFitThePrintedText() {
         const auto figure = [](const QString &, const QString &, bool) {
             return QVariantMap{{"src", "file:///f.svg"}, {"width", 32.0}, {"height", 16.0}};

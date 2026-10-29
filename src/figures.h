@@ -11,7 +11,7 @@ class QProcess;
 
 // Math and Mermaid diagrams, drawn by programs of their own into pictures in
 // the cache folder: MathJax under node, GitHub's math engine, and Mermaid's
-// mmdc. Each is drawn once in each set of colours and kept.
+// own mmdc. Each is drawn once in each set of colours and kept.
 class Figures : public QObject {
     Q_OBJECT
 

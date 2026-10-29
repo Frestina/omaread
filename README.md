@@ -26,6 +26,13 @@ Arch's `mathjax` are installed. Formulas are drawn in the background and kept
 in `~/.cache/omaread`; until then, or without MathJax, a formula shows as its
 TeX. Arch's MathJax leaves out the fonts for `\mathbb`, `\mathcal` and the
 like, so formulas using them show as TeX too.
+
+`` ```mermaid `` blocks are drawn as diagrams by Mermaid's own `mmdc`, when
+`mermaid-cli` is installed, the same way: in the background, kept in the cache,
+and shown as code until then. They follow the page's colours: Mermaid's light
+and dark themes on GitHub's palettes, as on github.com, or the Omarchy theme's.
+A block that is not a diagram stays code. Printing draws formulas and diagrams
+in GitHub's light colours.
 Colours come from the current Omarchy theme, and fall back to GitHub's own
 light and dark palettes when there is none.
 
@@ -81,7 +88,7 @@ That size is remembered.
 - `cmark-gfm`
 - `syntax-highlighting`, KDE's KSyntaxHighlighting, for code
 - `xdg-desktop-portal` and a portal backend
-- Optionally `nodejs` and `mathjax`, for math
+- Optionally `nodejs` and `mathjax`, for math, and `mermaid-cli`, for diagrams
 
 ## Build and install
 
@@ -128,10 +135,6 @@ colours instead of the Omarchy theme.
 `bin/screenshots` remakes the two screenshots above from a made-up project in
 `tools/demo/stargazer`. `tools/update-emoji` remakes the emoji shortcodes from
 GitHub's list in [gemoji](https://github.com/github/gemoji).
-
-## Not yet
-
-Mermaid diagrams.
 
 ## License
 

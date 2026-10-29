@@ -10,7 +10,8 @@ license=('MIT')
 install='omaread.install'
 depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'cmark-gfm' 'syntax-highlighting' 'xdg-desktop-portal')
 optdepends=('mathjax: math'
-            'nodejs: math')
+            'nodejs: math'
+            'mermaid-cli: Mermaid diagrams')
 makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative' 'cmark-gfm' 'syntax-highlighting')
 source=()
 sha256sums=()

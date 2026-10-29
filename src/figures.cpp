@@ -16,16 +16,39 @@ namespace {
 
 const QString mathjaxDir = QStringLiteral("/usr/share/mathjax");
 
-// Pictures are drawn at twice the size they show, so they are sharp on a
-// fine screen; paper draws them again from the SVG.
+// Pictures are drawn larger than they show, so they are sharp on a fine
+// screen. Paper draws formulas again from their SVG, but diagrams are
+// pictures, drawn larger still for it.
 constexpr int mathScale = 2;
+constexpr int mermaidScale = 3;
 
-// A program that has not finished in this long is given up on.
-constexpr int drawingTimeout = 60000;
+int scale(const QString &kind) {
+    return kind == QLatin1String("math") ? mathScale : mermaidScale;
+}
+
+// A program is given this long for each figure before it is given up on.
+constexpr int drawingTimeout = 20000;
 
 QString node() {
     return QStandardPaths::findExecutable(QStringLiteral("node"));
 }
+
+QString mmdc() {
+    return QStandardPaths::findExecutable(QStringLiteral("mmdc"));
+}
+
+// Draws each diagram, one at a time so that one that is not Mermaid spoils
+// no other, and keeps why a diagram failed in its .failed file.
+const QString drawMermaid = QStringLiteral(
+    "cd \"$1\" && shift && scale=$1 && shift\n"
+    "for key; do\n"
+    "  if mmdc -q -i \"$key.mmd\" -o \"$key.png\" -s \"$scale\" -b transparent -c \"$key.json\" 2>\"$key.err\"; then\n"
+    "    rm -f \"$key.err\"\n"
+    "  else\n"
+    "    mv \"$key.err\" \"$key.failed\"\n"
+    "  fi\n"
+    "  rm -f \"$key.mmd\" \"$key.json\"\n"
+    "done\n");
 
 }
 
@@ -38,25 +61,51 @@ Figures::Figures(QObject *parent)
 bool Figures::canDraw(const QString &kind) {
     if (kind == QLatin1String("math"))
         return !node().isEmpty() && QFile::exists(mathjaxDir + QStringLiteral("/tex-svg.js"));
+    if (kind == QLatin1String("mermaid"))
+        return !mmdc().isEmpty();
     return false;
 }
 
-// What of the page's colours a figure is drawn in.
+// What of the page's colours a figure is drawn in: a formula in the text's
+// colour, and a diagram in Mermaid's own light or dark theme on GitHub's
+// palettes, as github.com draws them, or in Mermaid's base theme coloured
+// from an Omarchy theme.
 QString Figures::style(const QString &kind, const QVariantMap &colors, bool darkMode) const {
-    Q_UNUSED(kind);
-    Q_UNUSED(darkMode);
-    return colors.value(QStringLiteral("foreground")).toString();
+    const auto color = [&colors](const char *name) { return colors.value(QLatin1String(name)).toString(); };
+    if (kind == QLatin1String("math"))
+        return color("foreground");
+
+    QJsonObject variables{{"fontFamily", "Noto Sans, sans-serif"}};
+    QString theme = darkMode ? QStringLiteral("dark") : QStringLiteral("default");
+    const QString background = color("background");
+    if (background != QLatin1String("#ffffff") && background != QLatin1String("#0d1117")) {
+        theme = QStringLiteral("base");
+        variables.insert("darkMode", darkMode);
+        variables.insert("background", background);
+        variables.insert("primaryColor", color("codeBackground"));
+        variables.insert("primaryTextColor", color("foreground"));
+        variables.insert("primaryBorderColor", color("muted"));
+        variables.insert("secondaryColor", color("stripe"));
+        variables.insert("tertiaryColor", background);
+        variables.insert("lineColor", color("muted"));
+        variables.insert("textColor", color("foreground"));
+        variables.insert("noteBkgColor", color("codeBackground"));
+        variables.insert("noteTextColor", color("foreground"));
+    }
+    return QString::fromUtf8(QJsonDocument(QJsonObject{{"theme", theme}, {"themeVariables", variables}})
+                                 .toJson(QJsonDocument::Compact));
 }
 
 QString Figures::file(const Figure &figure) const {
-    return m_dir + QLatin1Char('/') + figure.key + QStringLiteral(".svg");
+    return m_dir + QLatin1Char('/') + figure.key
+        + (figure.kind == QLatin1String("math") ? QStringLiteral(".svg") : QStringLiteral(".png"));
 }
 
 QVariantMap Figures::picture(const QString &kind, const QString &source, bool display,
                              const QVariantMap &colors, bool darkMode) {
     Figure figure{kind, QString(), source, display, style(kind, colors, darkMode)};
     figure.key = QString::fromLatin1(
-        QCryptographicHash::hash(QStringList{kind, QString::number(display), QString::number(mathScale),
+        QCryptographicHash::hash(QStringList{kind, QString::number(display), QString::number(scale(kind)),
                                              figure.style, source}
                                      .join(QLatin1Char('\n')).toUtf8(),
                                  QCryptographicHash::Sha1)
@@ -68,8 +117,8 @@ QVariantMap Figures::picture(const QString &kind, const QString &source, bool di
         const QSize size = QImageReader(path).size();
         if (size.isValid())
             return {{"src", QUrl::fromLocalFile(path).toString()},
-                    {"width", qreal(size.width()) / mathScale},
-                    {"height", qreal(size.height()) / mathScale}};
+                    {"width", qreal(size.width()) / scale(kind)},
+                    {"height", qreal(size.height()) / scale(kind)}};
     }
     if (!canDraw(kind) || QFile::exists(m_dir + QLatin1Char('/') + figure.key + QStringLiteral(".failed")))
         return {};
@@ -106,7 +155,7 @@ void Figures::drawWanted() {
             if (error == QProcess::FailedToStart)
                 emit process->finished(-1, QProcess::CrashExit);
         });
-        QTimer::singleShot(drawingTimeout, process, &QProcess::kill);
+        QTimer::singleShot(drawingTimeout * figures.size(), process, &QProcess::kill);
     }
 }
 
@@ -119,7 +168,7 @@ void Figures::drawWantedNow(int timeout) {
     m_wanted.clear();
     for (auto it = byKind.cbegin(); it != byKind.cend(); ++it) {
         QProcess *process = start(it.key(), it.value());
-        process->waitForFinished(timeout);
+        process->waitForFinished(qMax(timeout, drawingTimeout * int(it.value().size())));
         finish(process, it.value());
     }
 }
@@ -127,7 +176,22 @@ void Figures::drawWantedNow(int timeout) {
 QProcess *Figures::start(const QString &kind, const QList<Figure> &figures) {
     auto *process = new QProcess(this);
     process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
-    Q_UNUSED(kind);
+
+    if (kind == QLatin1String("mermaid")) {
+        QStringList arguments{QStringLiteral("-c"), drawMermaid, QStringLiteral("sh"), m_dir,
+                              QString::number(mermaidScale)};
+        for (const Figure &figure : figures) {
+            QFile source(m_dir + QLatin1Char('/') + figure.key + QStringLiteral(".mmd"));
+            QFile config(m_dir + QLatin1Char('/') + figure.key + QStringLiteral(".json"));
+            if (source.open(QIODevice::WriteOnly) && config.open(QIODevice::WriteOnly)) {
+                source.write(figure.source.toUtf8());
+                config.write(figure.style.toUtf8());
+                arguments.append(figure.key);
+            }
+        }
+        process->start(QStringLiteral("sh"), arguments);
+        return process;
+    }
 
     QFile script(QStringLiteral(":/drawmath.cjs"));
     if (!script.open(QIODevice::ReadOnly))

@@ -585,6 +585,10 @@ private:
             displayMath(text);
             return;
         }
+        if (language == QLatin1String("mermaid")) {
+            diagram(text);
+            return;
+        }
         add({{"type", "code"},
              {"code", text},
              {"language", language},
@@ -594,13 +598,23 @@ private:
     // A formula on a line of its own, centred, or its TeX as code until
     // there is a picture of it.
     void displayMath(const QString &tex) {
-        const QVariantMap picture = figure(QStringLiteral("math"), tex, true);
+        displayFigure(QStringLiteral("math"), tex);
+    }
+
+    // A Mermaid diagram, centred as on GitHub, or its source as code until
+    // there is a picture of it.
+    void diagram(const QString &source) {
+        displayFigure(QStringLiteral("mermaid"), source);
+    }
+
+    void displayFigure(const QString &kind, const QString &source) {
+        const QVariantMap picture = figure(kind, source, true);
         if (picture.isEmpty()) {
-            add({{"type", "code"}, {"code", tex}, {"language", "math"}, {"html", QString()}});
+            add({{"type", "code"}, {"code", source}, {"language", kind}, {"html", QString()}});
             return;
         }
         QVariantMap image = picture;
-        image.insert(QStringLiteral("alt"), tex);
+        image.insert(QStringLiteral("alt"), source);
         image.insert(QStringLiteral("href"), QString());
         image.insert(QStringLiteral("figure"), true);
         add({{"type", "images"}, {"images", QVariantList{image}}, {"align", "center"}});
