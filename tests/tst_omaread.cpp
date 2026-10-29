@@ -624,6 +624,7 @@ private slots:
         QCOMPARE(MarkdownRenderer::resolveUrl("/docs/..", baseUrl, rootUrl), QUrl("file:///repo/"));
         QCOMPARE(MarkdownRenderer::resolveUrl("/src/main.cpp", baseUrl, QUrl()),
                  QUrl("file:///src/main.cpp"));
+        QCOMPARE(MarkdownRenderer::resolveUrl("/../../a.png", baseUrl, QUrl()), QUrl("file:///a.png"));
         QCOMPARE(MarkdownRenderer::resolveUrl("//cdn.io/a.png", baseUrl, rootUrl),
                  QUrl("https://cdn.io/a.png"));
         QCOMPARE(MarkdownRenderer::resolveUrl("mailto:a@b.c", baseUrl, rootUrl), QUrl("mailto:a@b.c"));

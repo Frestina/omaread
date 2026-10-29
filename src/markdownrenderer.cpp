@@ -1178,8 +1178,9 @@ QUrl MarkdownRenderer::resolveUrl(const QString &url, const QUrl &baseUrl, const
     const QUrl parsed(trimmed);
     if (!parsed.scheme().isEmpty())
         return parsed;
-    // As a site's root, which '..' does not climb above, as on GitHub.
-    if (trimmed.startsWith(QLatin1Char('/')) && rootUrl.isValid()) {
+    // As a site's root, which '..' does not climb above, as on GitHub; out
+    // of a repository, the root of the disk.
+    if (trimmed.startsWith(QLatin1Char('/'))) {
         QStringList segments;
         const QStringList parts = parsed.path().mid(1).split(QLatin1Char('/'));
         for (const QString &part : parts) {
@@ -1195,7 +1196,7 @@ QUrl MarkdownRenderer::resolveUrl(const QString &url, const QUrl &baseUrl, const
             segments.append(QString());
         QUrl inRoot = parsed;
         inRoot.setScheme(QStringLiteral("file"));
-        inRoot.setPath(rootUrl.path() + segments.join(QLatin1Char('/')));
+        inRoot.setPath((rootUrl.isValid() ? rootUrl.path() : QStringLiteral("/")) + segments.join(QLatin1Char('/')));
         return inRoot;
     }
     return baseUrl.resolved(parsed);
