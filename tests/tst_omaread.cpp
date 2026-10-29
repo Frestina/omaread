@@ -1,4 +1,6 @@
 #include <QtTest>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickItem>
@@ -13,6 +15,7 @@
 #include "codehighlighter.h"
 #include "figures.h"
 #include "findhighlighter.h"
+#include "hyprlandrounding.h"
 #include "markdownrenderer.h"
 #include "printdocument.h"
 
@@ -802,9 +805,63 @@ private slots:
         QVERIFY(button->property("wanted").toBool());
         QTRY_VERIFY(button->isVisible());
 
+        // Round until Hyprland's rounding is known, then rounded as it is.
+        QQuickItem *face = button->childItems().value(0);
+        QCOMPARE(face->property("radius").toReal(), button->width() / 2);
+        view.backend.setCornerRadius(0);
+        QCOMPARE(face->property("radius").toReal(), 0.0);
+        view.backend.setCornerRadius(6);
+        QCOMPARE(face->property("radius").toReal(), 6.0);
+
         view.click(button);
         QTRY_COMPARE(flick->property("contentY").toReal(), 0.0);
         QTRY_VERIFY(!button->isVisible());
+    }
+
+    void hyprlandsRoundingIsRead() {
+        QCOMPARE(HyprlandRounding::parse(R"({"option": "decoration:rounding", "int": 6, "set": true })"), 6);
+        QCOMPARE(HyprlandRounding::parse(R"({"option": "decoration:rounding", "int": 0, "set": false })"), 0);
+        QCOMPARE(HyprlandRounding::parse("no such option"), -1);
+        QCOMPARE(HyprlandRounding::parse(""), -1);
+
+        // Asked for again when Hyprland reloads its config, as a theme
+        // change makes it: a hyprctl and an event socket of the test's own.
+        QTemporaryDir dir;
+        QFile answer(dir.filePath("rounding"));
+        const auto setRounding = [&answer](int rounding) {
+            QVERIFY(answer.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            answer.write(QByteArray(R"({"option": "decoration:rounding", "int": )") + QByteArray::number(rounding) + "}");
+            answer.close();
+        };
+        setRounding(3);
+        QFile hyprctl(dir.filePath("hyprctl"));
+        QVERIFY(hyprctl.open(QIODevice::WriteOnly));
+        hyprctl.write("#!/bin/sh\ncat " + answer.fileName().toUtf8() + "\n");
+        hyprctl.close();
+        hyprctl.setPermissions(hyprctl.permissions() | QFileDevice::ExeOwner);
+        QVERIFY(QDir(dir.path()).mkpath("hypr/test"));
+        QLocalServer hyprland;
+        QVERIFY(hyprland.listen(dir.filePath("hypr/test/.socket2.sock")));
+
+        const QByteArray path = qgetenv("PATH"), runtime = qgetenv("XDG_RUNTIME_DIR"),
+                         signature = qgetenv("HYPRLAND_INSTANCE_SIGNATURE");
+        qputenv("PATH", dir.path().toUtf8() + ":" + path);
+        qputenv("XDG_RUNTIME_DIR", dir.path().toUtf8());
+        qputenv("HYPRLAND_INSTANCE_SIGNATURE", "test");
+        HyprlandRounding rounding;
+        qputenv("PATH", path);
+        qputenv("XDG_RUNTIME_DIR", runtime);
+        qputenv("HYPRLAND_INSTANCE_SIGNATURE", signature);
+        QTRY_COMPARE(rounding.rounding(), 3);
+        QTRY_VERIFY(hyprland.hasPendingConnections());
+        QLocalSocket *events = hyprland.nextPendingConnection();
+
+        setRounding(9);
+        qputenv("PATH", dir.path().toUtf8() + ":" + path);
+        events->write("activewindow>>kitty,shell\nconfigreloaded>>\n");
+        events->flush();
+        QTRY_COMPARE(rounding.rounding(), 9);
+        qputenv("PATH", path);
     }
 
     void headingsKeepTheirPlainText() {

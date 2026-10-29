@@ -10,6 +10,7 @@
 
 #include "backend.h"
 #include "cli.h"
+#include "hyprlandrounding.h"
 #include "systemtheme.h"
 
 #define OMAREAD_VERSION "0.4.3"
@@ -42,6 +43,8 @@ int main(int argc, char *argv[]) {
     backend.setDarkMode(systemTheme.darkMode());
     QObject::connect(&systemTheme, &SystemTheme::darkModeChanged, &backend, &Backend::setDarkMode);
     backend.setDesktopTextScale(systemTheme.textScale());
+    HyprlandRounding rounding(&app);
+    QObject::connect(&rounding, &HyprlandRounding::roundingChanged, &backend, &Backend::setCornerRadius);
     QObject::connect(&systemTheme, &SystemTheme::textScaleChanged, &backend,
                      &Backend::setDesktopTextScale);
 

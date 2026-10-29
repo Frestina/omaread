@@ -633,6 +633,13 @@ void Backend::setOutlineOpen(bool open) {
     emit outlineOpenChanged();
 }
 
+void Backend::setCornerRadius(int radius) {
+    if (m_cornerRadius == radius)
+        return;
+    m_cornerRadius = radius;
+    emit cornerRadiusChanged();
+}
+
 void Backend::setTextZoom(qreal zoom) {
     setStatus(QStringLiteral("Text size %1%").arg(qRound(zoom * 100)));
     if (qFuzzyCompare(m_textZoom, zoom))

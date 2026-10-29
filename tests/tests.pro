@@ -14,6 +14,7 @@ SOURCES += \
     ../src/figures.cpp \
     ../src/cli.cpp \
     ../src/findhighlighter.cpp \
+    ../src/hyprlandrounding.cpp \
     ../src/markdownrenderer.cpp \
     ../src/printdocument.cpp
 HEADERS += \
@@ -22,6 +23,7 @@ HEADERS += \
     ../src/figures.h \
     ../src/cli.h \
     ../src/findhighlighter.h \
+    ../src/hyprlandrounding.h \
     ../src/markdownrenderer.h \
     ../src/printdocument.h
 RESOURCES += ../src/resources.qrc

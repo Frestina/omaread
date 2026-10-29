@@ -2,8 +2,9 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
 
-// A round button with an arrow up, which takes the page back to its top. It
-// fades in once the top is a whole window out of sight.
+// A button with an arrow up, which takes the page back to its top. It fades
+// in once the top is a whole window out of sight. Its corners are rounded as
+// Hyprland rounds the windows', or it is round when that is not known.
 Item {
     id: control
     objectName: "topButton"
@@ -28,7 +29,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: width / 2
+        radius: backend.cornerRadius < 0 ? width / 2 : Math.min(backend.cornerRadius, width / 2)
         color: hitArea.containsMouse ? win.colors.codeBackground : win.colors.background
         border.width: 1
         border.color: win.colors.border

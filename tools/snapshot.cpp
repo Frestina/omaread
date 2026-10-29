@@ -15,6 +15,7 @@
 #include <QTimer>
 
 #include "backend.h"
+#include "hyprlandrounding.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
@@ -48,6 +49,9 @@ int main(int argc, char *argv[]) {
     backend.setDarkMode(dark);
     // The outline shows only when asked for, whatever was last remembered.
     backend.setOutlineOpen(outline);
+    // Corners as Hyprland rounds them, as the theme's colours apply.
+    HyprlandRounding rounding;
+    QObject::connect(&rounding, &HyprlandRounding::roundingChanged, &backend, &Backend::setCornerRadius);
 
     if (out.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive)) {
         backend.open(file);

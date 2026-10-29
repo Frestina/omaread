@@ -13,6 +13,7 @@ SOURCES += \
     ../src/codehighlighter.cpp \
     ../src/figures.cpp \
     ../src/findhighlighter.cpp \
+    ../src/hyprlandrounding.cpp \
     ../src/markdownrenderer.cpp \
     ../src/printdocument.cpp
 HEADERS += \
@@ -20,6 +21,7 @@ HEADERS += \
     ../src/codehighlighter.h \
     ../src/figures.h \
     ../src/findhighlighter.h \
+    ../src/hyprlandrounding.h \
     ../src/markdownrenderer.h \
     ../src/printdocument.h
 

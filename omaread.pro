@@ -15,6 +15,7 @@ HEADERS += \
     src/findhighlighter.h \
     src/markdownrenderer.h \
     src/printdocument.h \
+    src/hyprlandrounding.h \
     src/systemtheme.h
 
 SOURCES += \
@@ -26,6 +27,7 @@ SOURCES += \
     src/findhighlighter.cpp \
     src/markdownrenderer.cpp \
     src/printdocument.cpp \
+    src/hyprlandrounding.cpp \
     src/systemtheme.cpp
 
 RESOURCES += src/resources.qrc

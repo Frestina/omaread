@@ -36,6 +36,9 @@ class Backend : public QObject {
     Q_PROPERTY(bool canEdit READ canEdit CONSTANT)
     // Whether the outline of headings shows, remembered between runs.
     Q_PROPERTY(bool outlineOpen READ outlineOpen WRITE setOutlineOpen NOTIFY outlineOpenChanged)
+    // Hyprland's window corner rounding in pixels, for the window's own
+    // buttons to match, or -1 when it is not known.
+    Q_PROPERTY(int cornerRadius READ cornerRadius NOTIFY cornerRadiusChanged)
 
 public:
     explicit Backend(QObject *parent = nullptr);
@@ -57,6 +60,8 @@ public:
     bool canEdit() const { return m_canEdit; }
     bool outlineOpen() const { return m_outlineOpen; }
     void setOutlineOpen(bool open);
+    int cornerRadius() const { return m_cornerRadius; }
+    void setCornerRadius(int radius);
 
     void setDarkMode(bool darkMode);
     void setDesktopTextScale(qreal textScale);
@@ -103,6 +108,7 @@ signals:
     void colorsChanged();
     void textScaleChanged();
     void outlineOpenChanged();
+    void cornerRadiusChanged();
     // The file changed on disk and is about to be shown again; the view
     // keeps its place.
     void aboutToReload();
@@ -135,6 +141,7 @@ private:
     QByteArray m_contents;
     QVariantList m_blocks;
     bool m_outlineOpen = false;
+    int m_cornerRadius = -1;
     // The blocks before the last reload, to find the reader's place in.
     QVariantList m_previousBlocks;
     QHash<QString, int> m_anchors;
