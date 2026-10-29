@@ -117,6 +117,10 @@ PrintImage decodeImage(const QByteArray &data) {
     return {image, size.isValid() ? size : image.size()};
 }
 
+// No picture a page shows is near this big; anything larger is left out
+// rather than read into memory whole.
+constexpr qint64 printImageLimit = 20 * 1024 * 1024;
+
 // Every image the page names, from disk or the web. A web image that takes
 // longer than ten seconds is left out rather than holding up the print.
 QHash<QString, PrintImage> loadPrintImages(const QStringList &sources) {
@@ -127,10 +131,15 @@ QHash<QString, PrintImage> loadPrintImages(const QStringList &sources) {
         const QUrl url(source);
         if (url.isLocalFile()) {
             QFile file(url.toLocalFile());
-            if (file.open(QIODevice::ReadOnly))
+            if (file.size() <= printImageLimit && file.open(QIODevice::ReadOnly))
                 images.insert(source, decodeImage(file.readAll()));
         } else if (url.scheme() == QLatin1String("http") || url.scheme() == QLatin1String("https")) {
-            downloads.append({source, network.get(QNetworkRequest(url))});
+            QNetworkReply *reply = network.get(QNetworkRequest(url));
+            QObject::connect(reply, &QNetworkReply::downloadProgress, reply, [reply](qint64 received, qint64 total) {
+                if (received > printImageLimit || total > printImageLimit)
+                    reply->abort();
+            });
+            downloads.append({source, reply});
         }
     }
 

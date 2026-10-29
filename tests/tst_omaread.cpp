@@ -7,6 +7,8 @@
 #include <QQuickItem>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextLayout>
@@ -821,6 +823,38 @@ private slots:
         QVERIFY(saved.open(QIODevice::ReadOnly));
         QVERIFY(saved.read(5) == "%PDF-");
         QCOMPARE(view.backend.status(), QStringLiteral("Saved notes.pdf"));
+    }
+
+    void endlessWebImagesAreLeftOutOfPrint() {
+        // A server whose image never ends.
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&server]() {
+            QTcpSocket *socket = server.nextPendingConnection();
+            socket->write("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\n\r\n");
+            const QByteArray chunk(1 << 20, 'x');
+            const auto send = [socket, chunk]() {
+                if (socket->bytesToWrite() < chunk.size())
+                    socket->write(chunk);
+            };
+            connect(socket, &QTcpSocket::bytesWritten, socket, send);
+            send();
+        });
+
+        QTemporaryDir dir;
+        QFile markdown(dir.filePath("big.md"));
+        QVERIFY(markdown.open(QIODevice::WriteOnly));
+        markdown.write(QStringLiteral("![big](http://127.0.0.1:%1/big.png)\n").arg(server.serverPort()).toUtf8());
+        markdown.close();
+        Backend backend;
+        backend.open(QUrl::fromLocalFile(markdown.fileName()));
+
+        // Given up on well before the ten seconds a slow image gets.
+        QElapsedTimer timer;
+        timer.start();
+        backend.savePdf(backend.pdfUrl());
+        QVERIFY(timer.elapsed() < 5000);
+        QCOMPARE(backend.status(), QStringLiteral("Saved big.pdf"));
     }
 
     void reloadsFollowTheBlockBeingRead() {
