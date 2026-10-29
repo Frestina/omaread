@@ -24,9 +24,9 @@ SOFTWARE.
 
 Omaread is modelled on Omawrite (https://github.com/omacom/omawrite).
 src/systemtheme.h, src/systemtheme.cpp, src/cli.h, src/cli.cpp,
-src/SearchIconButton.qml, the build scripts in bin/, parts of src/backend.cpp
-and the matching in src/findhighlighter.cpp are adapted from it, under its
-license:
+src/SearchIconButton.qml, src/FooterIconButton.qml, src/ShortcutsDialog.qml,
+the build scripts in bin/, parts of src/backend.cpp and the matching in
+src/findhighlighter.cpp are adapted from it, under its license:
 
 Copyright (c) 2026 David Heinemeier Hansson
 

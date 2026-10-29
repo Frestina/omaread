@@ -1,4 +1,4 @@
-QT += core gui widgets printsupport network quick dbus testlib
+QT += core gui widgets printsupport network quick quickcontrols2 dbus testlib
 CONFIG += testcase c++17
 TEMPLATE = app
 TARGET = tst_omaread

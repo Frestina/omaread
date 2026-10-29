@@ -1,4 +1,9 @@
 #include <QtTest>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQuickItem>
+#include <QQuickStyle>
+#include <QQuickWindow>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextLayout>
@@ -26,6 +31,35 @@ QVariantMap blockAt(const RenderedMarkdown &rendered, int index) {
 QVariantMap container(const QVariantMap &block, int index) {
     return block.value("containers").toList().at(index).toMap();
 }
+
+// Omaread's own window, offscreen, showing what its backend shows.
+struct Window {
+    Backend backend;
+    QQmlApplicationEngine engine;
+    QQuickWindow *window = nullptr;
+
+    Window() {
+        QQuickStyle::setStyle(QStringLiteral("Material"));
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        engine.load(QUrl(QStringLiteral("qrc:/Main.qml")));
+        window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
+        if (window) {
+            window->resize(1000, 800);
+            window->show();
+            QVERIFY(QTest::qWaitForWindowExposed(window));
+        }
+    }
+
+    template <typename T = QQuickItem>
+    T *find(const char *name) const {
+        return window->findChild<T *>(QLatin1String(name));
+    }
+
+    void click(QQuickItem *item) const {
+        QTest::mouseClick(window, Qt::LeftButton, {},
+                          item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint());
+    }
+};
 }
 
 class OmareadTest : public QObject {
@@ -534,6 +568,25 @@ private slots:
         QTRY_COMPARE(document.begin().layout()->formats().size(), 1);
         QCOMPARE(FindHighlighter::mark(&document, QString(), -1, false), QList<int>());
         QCOMPARE(document.begin().layout()->formats().size(), 0);
+    }
+
+    void shortcutsShowFromTheFooterAndF1() {
+        Window view;
+        QVERIFY(view.window);
+        QObject *dialog = view.find<QObject>("shortcutsDialog");
+        QVERIFY(dialog);
+        QVERIFY(!dialog->property("visible").toBool());
+
+        QTest::keyClick(view.window, Qt::Key_F1);
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        QTest::keyClick(view.window, Qt::Key_Escape);
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+
+        view.click(view.find("shortcutsButton"));
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        // Every shortcut the window answers is listed.
+        QCOMPARE(dialog->property("sections").toList().size(), 4);
+        QVERIFY(view.find("openButton"));
     }
 
     void markdownFilesAreRecognised() {

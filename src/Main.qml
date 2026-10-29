@@ -326,8 +326,18 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "Escape"
-        enabled: win.findOpen
+        enabled: win.findOpen && !shortcutsDialog.opened
         onActivated: win.closeFind()
+    }
+
+    // As in Omawrite.
+    Shortcut {
+        sequences: ["F1", "Ctrl+/", "Ctrl+?"]
+        onActivated: shortcutsDialog.opened ? shortcutsDialog.close() : shortcutsDialog.open()
+    }
+
+    ShortcutsDialog {
+        id: shortcutsDialog
     }
 
     Dialogs.FileDialog {
@@ -616,11 +626,36 @@ ApplicationWindow {
         height: win.footerHeight
         color: win.colors.background
 
+        // Opening a file and the shortcuts, as Omawrite's footer has them.
+        Row {
+            id: footerButtons
+            anchors {
+                left: parent.left
+                leftMargin: win.scaled(14)
+                verticalCenter: parent.verticalCenter
+            }
+            spacing: win.scaled(14)
+
+            FooterIconButton {
+                objectName: "openButton"
+                iconName: "open"
+                tooltip: "Open (Ctrl+O)"
+                onClicked: openDialog.open()
+            }
+
+            FooterIconButton {
+                objectName: "shortcutsButton"
+                iconName: "keyboard"
+                tooltip: "Keyboard shortcuts (F1)"
+                onClicked: shortcutsDialog.open()
+            }
+        }
+
         // Where a link goes while the pointer is on it, as a browser shows;
         // otherwise the file being read.
         Label {
             anchors {
-                left: parent.left
+                left: footerButtons.right
                 leftMargin: win.scaled(14)
                 right: status.left
                 rightMargin: win.scaled(14)

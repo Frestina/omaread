@@ -62,8 +62,10 @@ without opening a window.
 
 ## Shortcuts
 
-- `Ctrl+O` opens a Markdown file through the portal picker. Dropping a file on
-  the window works too.
+- `F1`, `Ctrl+/` or `Ctrl+?` lists every shortcut, as does the keyboard
+  button at the bottom left.
+- `Ctrl+O` opens a Markdown file through the portal picker, as does the folder
+  button at the bottom left. Dropping a file on the window works too.
 - `Ctrl+P` prints, or saves a PDF through the print dialog. The page is laid
   out as on screen, in GitHub's light colours whatever the screen shows.
 - `Ctrl+E` opens the file in Omawrite, when it is installed. Omaread keeps
