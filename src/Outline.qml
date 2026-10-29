@@ -34,7 +34,7 @@ Rectangle {
     Rectangle {
         visible: !root.floating
         anchors {
-            left: parent.left
+            right: parent.right
             top: parent.top
             bottom: parent.bottom
         }

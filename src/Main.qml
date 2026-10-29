@@ -240,6 +240,18 @@ ApplicationWindow {
         glide.start();
     }
 
+    // Glides back to the top, as quickly from far down as from near it.
+    function glideToTop() {
+        readingPlace = null;
+        heldPlace = null;
+        flick.cancelFlick();
+        wheelScroll.stop();
+        glide.stop();
+        glide.index = -1;
+        glide.to = 0;
+        glide.start();
+    }
+
     function scrollToAnchor(anchor) {
         page.forceLayout();
         var index = backend.anchorIndex(anchor);
@@ -578,8 +590,8 @@ ApplicationWindow {
         id: flick
         objectName: "flick"
         anchors {
-            left: parent.left
-            right: win.outlineShown && win.outlineDocked ? outline.left : parent.right
+            left: win.outlineShown && win.outlineDocked ? outline.right : parent.left
+            right: parent.right
             top: parent.top
             bottom: footer.top
         }
@@ -860,7 +872,7 @@ ApplicationWindow {
         id: findBar
         anchors {
             top: parent.top
-            left: parent.left
+            left: flick.left
             right: flick.right
             topMargin: 12
             leftMargin: 12
@@ -984,7 +996,7 @@ ApplicationWindow {
     Outline {
         id: outline
         anchors {
-            right: parent.right
+            left: parent.left
             top: parent.top
             bottom: footer.top
             margins: floating ? win.scaled(12) : 0
@@ -997,6 +1009,18 @@ ApplicationWindow {
         onChosen: (index) => win.glideToBlock(index)
         onCloseRequested: backend.outlineOpen = false
         Component.onCompleted: current = win.currentHeading()
+    }
+
+    TopButton {
+        anchors {
+            right: flick.right
+            bottom: flick.bottom
+            margins: win.scaled(24)
+        }
+        z: 4
+        // Once the top of the page is a whole window out of sight.
+        wanted: flick.contentY > flick.height
+        onClicked: win.glideToTop()
     }
 
     DropArea {

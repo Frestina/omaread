@@ -64,11 +64,11 @@ without opening a window.
 
 - `Ctrl+Shift+O` shows or hides the contents, as does the list button at the
   bottom left, and Omaread remembers which. The contents list the headings,
-  indented by level as GitHub's outline does. A click glides to a heading, opening
-  the `<details>` it is folded in, and the section being read is marked as
-  you scroll. The panel sits beside the page, or over it when the window is too
-  narrow to keep the text at a comfortable width, where `Esc` closes it. A
-  file without headings has no contents.
+  indented by level as GitHub's outline does. A click glides to a heading,
+  opening the `<details>` it is folded in, and the section being read is
+  marked as you scroll. The panel sits on the left beside the page, or over
+  it when the window is too narrow to keep the text at a comfortable width,
+  where `Esc` closes it. A file without headings has no contents.
 - `F1`, `Ctrl+/` or `Ctrl+?` lists every shortcut, as does the keyboard
   button at the bottom left.
 - `Ctrl+O` opens a Markdown file through the portal picker, as does the folder
@@ -96,7 +96,9 @@ without opening a window.
   to the next match, `Shift+Enter` or `Ctrl+Shift+G` to the one before, and
   `Esc` closes. A match in a closed `<details>` opens it.
 - `Up`/`Down` or `j`/`k` scroll, as do `Page Up`/`Page Down` and `Space`.
-  `Home`/`End` or `g`/`G` jump to the top and bottom. A touchpad moves the
+  `Home`/`End` or `g`/`G` jump to the top and bottom, and once the top is a
+  whole window out of sight, a round button at the bottom right glides back
+  to it. A touchpad moves the
   page twice as far as your fingers go, and a mouse wheel glides three lines a
   notch, as in a browser and in Omawrite.
 - `Super+F` or `F11` toggles fullscreen.

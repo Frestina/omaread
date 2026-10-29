@@ -776,6 +776,37 @@ private slots:
         QTRY_COMPARE(flick->property("contentY").toReal(), 220.0);
     }
 
+    void theTopButtonShowsWellDownAndGoesBackUp() {
+        QTemporaryDir dir;
+        const QString path = dir.filePath("long.md");
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        for (int i = 0; i < 100; ++i)
+            file.write("A paragraph that takes up a line or two of the page.\n\n");
+        file.close();
+
+        Window view;
+        QVERIFY(view.window);
+        view.backend.open(QUrl::fromLocalFile(path));
+        QObject *flick = view.find<QObject>("flick");
+        QQuickItem *button = view.find("topButton");
+        QVERIFY(button);
+        QTRY_VERIFY(flick->property("contentHeight").toReal() > 3000);
+        QVERIFY(!button->property("wanted").toBool());
+
+        // Less than a window down, it stays away; further, it comes.
+        const qreal window = flick->property("height").toReal();
+        QMetaObject::invokeMethod(view.window, "scrollTo", Q_ARG(QVariant, window - 10));
+        QVERIFY(!button->property("wanted").toBool());
+        QMetaObject::invokeMethod(view.window, "scrollTo", Q_ARG(QVariant, window * 2));
+        QVERIFY(button->property("wanted").toBool());
+        QTRY_VERIFY(button->isVisible());
+
+        view.click(button);
+        QTRY_COMPARE(flick->property("contentY").toReal(), 0.0);
+        QTRY_VERIFY(!button->isVisible());
+    }
+
     void headingsKeepTheirPlainText() {
         const QVariantMap heading = blockAt(render("# Size of `n` and $x$ :tada:\n"), 0);
         QCOMPARE(heading.value("text").toString(), QStringLiteral("Size of n and x 🎉"));
@@ -821,8 +852,10 @@ private slots:
         QCOMPARE(headings.size(), 4);
         QCOMPARE(headings.at(2).toMap().value("text").toString(), QStringLiteral("Hidden"));
         QCOMPARE(outline->property("topLevel").toInt(), 1);
-        // Beside the page in a wide window.
+        // Beside the page, on its left, in a wide window.
         QVERIFY(!outline->property("floating").toBool());
+        QCOMPARE(outline->x(), 0.0);
+        QCOMPARE(view.find("flick")->x(), outline->width());
 
         // A click goes to its heading, which is then the current one.
         view.click(view.findShown("outlineEntry3"));
