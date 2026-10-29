@@ -226,6 +226,7 @@ bool Backend::load(const QString &path, bool reloading) {
     m_path = info.absoluteFilePath();
     m_contents = contents;
     m_rootUrl = repositoryRoot(info.absolutePath());
+    m_previousBlocks = reloading ? m_blocks : QVariantList();
     render();
     m_error.clear();
     m_fileMissing = false;
@@ -252,11 +253,18 @@ void Backend::rerender() {
     const QVariantList before = m_blocks;
     render();
     if (m_blocks != before) {
+        m_previousBlocks = before;
         emit aboutToReload();
         emit documentChanged();
         emit documentLoaded(QString(), -1);
     }
     m_figures.drawWanted();
+}
+
+QVariantMap Backend::followBlock(int index) const {
+    bool same = false;
+    const int found = MarkdownRenderer::followBlock(m_previousBlocks, index, m_blocks, &same);
+    return {{"index", found}, {"same", same}};
 }
 
 MarkdownRenderer::FigureLookup Backend::figureLookup(const QVariantMap &colors, bool darkMode) {

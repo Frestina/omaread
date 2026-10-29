@@ -25,7 +25,12 @@ ApplicationWindow {
     readonly property int columnWidth: Math.max(0, Math.min(scaled(880), width - 2 * scaled(32)))
     property string hoveredLink: ""
     property var selectionOwner: null
-    property real savedY: 0
+    // The block being read when the file was about to be shown again, as
+    // {index, offset, height}, or {top: true} at the very top.
+    property var readingPlace: null
+    // The place the page holds while blocks above it change height, as
+    // images load, until the reader scrolls: {index, offset}, or {top: true}.
+    property var heldPlace: null
     // The <details> opened or closed by hand, by id; the rest are as the file
     // has them.
     property var detailsState: ({})
@@ -112,8 +117,58 @@ ApplicationWindow {
     }
 
     function scrollTo(y) {
+        heldPlace = null;
         flick.cancelFlick();
         flick.contentY = Math.max(0, Math.min(y, maxY()));
+    }
+
+    // The block at the top of the window, and how far into it the window is.
+    function placeOnScreen() {
+        if (flick.contentY <= 0)
+            return { top: true };
+        for (var i = 0; i < blocks.count; ++i) {
+            var item = blocks.itemAt(i);
+            var top = page.y + item.y;
+            if (item.height > 0 && top + item.height > flick.contentY)
+                return { index: i, offset: flick.contentY - top, height: item.height };
+        }
+        return null;
+    }
+
+    // Back to the place read before the file changed: the same block, or the
+    // one now in its place, the same way into it.
+    function restorePlace() {
+        var place = readingPlace;
+        readingPlace = null;
+        if (!place || place.top) {
+            holdPlace({ top: true });
+            return;
+        }
+        var follow = backend.followBlock(place.index);
+        var item = blocks.itemAt(follow.index);
+        if (!item) {
+            holdPlace({ top: true });
+            return;
+        }
+        // Into a changed block by the same share of it.
+        var offset = follow.same ? Math.min(place.offset, item.height)
+                                 : place.offset / place.height * item.height;
+        holdPlace({ index: follow.index, offset: offset });
+    }
+
+    // Puts the held place at the top of the window again.
+    function holdPlace(place) {
+        if (place !== undefined)
+            heldPlace = place;
+        if (!heldPlace)
+            return;
+        var item = heldPlace.top ? null : blocks.itemAt(heldPlace.index);
+        if (!heldPlace.top && !item) {
+            heldPlace = null;
+            return;
+        }
+        flick.cancelFlick();
+        flick.contentY = item ? Math.max(0, Math.min(page.y + item.y + heldPlace.offset, maxY())) : 0;
     }
 
     function scrollToAnchor(anchor) {
@@ -128,6 +183,8 @@ ApplicationWindow {
             return;
         }
         scrollTo(page.y + item.y + item.gapTop - scaled(16));
+        // It stays there as images above it load.
+        holdPlace({ index: index, offset: item.gapTop - scaled(16) });
     }
 
     // The texts find in page searches, in reading order.
@@ -235,6 +292,7 @@ ApplicationWindow {
 
     // The page keeps still on screen as the room for the bar comes and goes.
     function openFind() {
+        heldPlace = null;
         if (!findOpen && flick.contentY > 0) {
             findOpen = true;
             flick.contentY += findRoom;
@@ -246,6 +304,7 @@ ApplicationWindow {
     }
 
     function closeFind() {
+        heldPlace = null;
         findDelay.stop();
         // The page takes the keys again, to scroll.
         flick.forceActiveFocus();
@@ -263,7 +322,8 @@ ApplicationWindow {
         target: backend
 
         function onAboutToReload() {
-            win.savedY = flick.contentY;
+            win.readingPlace = win.placeOnScreen();
+            win.heldPlace = null;
         }
 
         function onDocumentLoaded(anchor, position) {
@@ -279,7 +339,7 @@ ApplicationWindow {
             if (anchor)
                 Qt.callLater(win.scrollToAnchor, anchor);
             else if (position < 0)
-                Qt.callLater(win.scrollTo, win.savedY);
+                Qt.callLater(win.restorePlace);
             else
                 Qt.callLater(win.scrollTo, position);
         }
@@ -433,6 +493,7 @@ ApplicationWindow {
 
     Flickable {
         id: flick
+        objectName: "flick"
         anchors {
             left: parent.left
             right: parent.right
@@ -445,7 +506,17 @@ ApplicationWindow {
         clip: true
         focus: true
 
-        ScrollBar.vertical: ScrollBar { }
+        ScrollBar.vertical: ScrollBar {
+            onPressedChanged: {
+                if (pressed)
+                    win.heldPlace = null;
+            }
+        }
+
+        // The page holds its place as what is above it changes height, until
+        // the reader scrolls.
+        onContentHeightChanged: win.holdPlace()
+        onMovementStarted: win.heldPlace = null
 
         Keys.onPressed: (event) => {
             var line = win.scaled(48);

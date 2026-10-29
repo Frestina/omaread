@@ -618,6 +618,119 @@ private slots:
         QCOMPARE(view.backend.status(), QStringLiteral("Saved notes.pdf"));
     }
 
+    void reloadsFollowTheBlockBeingRead() {
+        const auto follow = [](const char *before, int index, const char *after) {
+            bool same = false;
+            const int found = MarkdownRenderer::followBlock(render(before).blocks, index, render(after).blocks, &same);
+            return QStringLiteral("%1%2").arg(found).arg(same ? "" : " changed");
+        };
+        // Blocks added or removed above.
+        QCOMPARE(follow("A\n\nB\n\nC\n", 1, "X\n\nY\n\nA\n\nB\n\nC\n"), QStringLiteral("3"));
+        QCOMPARE(follow("A\n\nB\n\nC\n", 2, "B\n\nC\n"), QStringLiteral("1"));
+        // Lists number their items again; the item is the same.
+        QCOMPARE(follow("1. a\n2. b\n3. c\n", 1, "1. z\n2. a\n3. b\n4. c\n"), QStringLiteral("2"));
+        // The block itself was changed: the block now in its place.
+        QCOMPARE(follow("A\n\nB\n\nC\n", 1, "A\n\nB, changed\n\nC\n"), QStringLiteral("1 changed"));
+        QCOMPARE(follow("A\n\nB\n\nC\n\nD\n\nE\n", 2, "A\n\nnew\n\nB\n\nC, changed\n\nD\n\nE\n"),
+                 QStringLiteral("3 changed"));
+        // Removed: the block after it.
+        QCOMPARE(follow("A\n\nB\n\nC\n", 1, "A\n\nC\n"), QStringLiteral("1 changed"));
+        // Text found more than once: the copy nearest where it was.
+        QCOMPARE(follow("A\n\nR\n\nB\n\nR\n\nC\n", 3, "A2\n\nX\n\nR\n\nB\n\nR\n\nC2\n"), QStringLiteral("4"));
+        QCOMPARE(follow("A\n\nR\n\nB\n\nR\n\nC\n", 1, "A2\n\nX\n\nR\n\nB\n\nR\n\nC2\n"), QStringLiteral("2"));
+        QCOMPARE(follow("A\n", 0, ""), QStringLiteral("-1 changed"));
+    }
+
+    void reloadsKeepThePlaceBeingRead() {
+        QTemporaryDir dir;
+        const QString path = dir.filePath("long.md");
+        const auto write = [&path](const QByteArray &top, const QByteArray &edit = {}) {
+            QByteArray text = top;
+            for (int i = 0; i < 80; ++i) {
+                text += (i == 40 && !edit.isEmpty() ? edit : "Paragraph " + QByteArray::number(i))
+                    + " reads on for a while, long enough to wrap onto a second line when the window"
+                      " is narrow, as prose does.\n\n";
+            }
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write(text);
+        };
+        const auto place = [](QObject *window) {
+            QVariant result;
+            QMetaObject::invokeMethod(window, "placeOnScreen", Q_RETURN_ARG(QVariant, result));
+            return result.toMap();
+        };
+
+        write("# Title\n\n");
+        Window view;
+        QVERIFY(view.window);
+        QObject *flick = view.find<QObject>("flick");
+        view.backend.open(QUrl::fromLocalFile(path));
+
+        // Partway into a block halfway down.
+        QTRY_VERIFY(flick->property("contentHeight").toReal() > 3000);
+        QMetaObject::invokeMethod(view.window, "scrollTo", Q_ARG(QVariant, 2000.0));
+        const QVariantMap before = place(view.window);
+        QVERIFY(before.value("index").toInt() > 10);
+        QVERIFY(before.value("offset").toReal() > 0);
+
+        // Text added above: the same block, the same way into it.
+        write("# Title\n\nNew.\n\nNewer.\n\n");
+        view.backend.reload();
+        QTRY_COMPARE(place(view.window).value("index").toInt(), before.value("index").toInt() + 2);
+        QCOMPARE(place(view.window).value("offset").toReal(), before.value("offset").toReal());
+
+        // Blocks above change height, as images loading do: the place holds.
+        view.window->resize(560, 800);
+        QTRY_COMPARE(view.window->width(), 560);
+        QTRY_COMPARE(place(view.window).value("index").toInt(), before.value("index").toInt() + 2);
+        QTRY_VERIFY(qAbs(place(view.window).value("offset").toReal() - before.value("offset").toReal()) < 1);
+
+        // Until the reader scrolls, with the wheel or the keys.
+        QVERIFY(!view.window->property("heldPlace").isNull());
+        const QPointF middle(view.window->width() / 2.0, view.window->height() / 2.0);
+        QWheelEvent wheel(middle, view.window->mapToGlobal(middle), QPoint(), QPoint(0, -120), Qt::NoButton,
+                          Qt::NoModifier, Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(view.window, &wheel);
+        QTRY_VERIFY(view.window->property("heldPlace").isNull());
+        QMetaObject::invokeMethod(view.window, "holdPlace", Q_ARG(QVariant, (QVariantMap{{"top", true}})));
+        QTest::keyClick(view.window, Qt::Key_Down);
+        QVERIFY(view.window->property("heldPlace").isNull());
+
+        // A block changed where it is read: the block in its place.
+        view.window->resize(1000, 800);
+        QMetaObject::invokeMethod(view.window, "scrollTo", Q_ARG(QVariant, 2000.0));
+        const int reading = place(view.window).value("index").toInt();
+        QVERIFY(reading > 2 && reading < 80);
+        write("# Title\n\nNew.\n\nNewer.\n\n", "");
+        {
+            // Paragraph i is block i + 3; change the one being read.
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::ReadOnly));
+            QByteArray text = file.readAll();
+            file.close();
+            text.replace("Paragraph " + QByteArray::number(reading - 3) + " ", "Paragraph changed ");
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write(text);
+        }
+        view.backend.reload();
+        QTRY_COMPARE(place(view.window).value("index").toInt(), reading);
+
+        // At the very top, the page stays at the top.
+        QMetaObject::invokeMethod(view.window, "scrollTo", Q_ARG(QVariant, 0.0));
+        write("# Title\n\nNewest.\n\nNew.\n\nNewer.\n\n");
+        view.backend.reload();
+        QTest::qWait(100);
+        QCOMPARE(flick->property("contentY").toReal(), 0.0);
+
+        // Another file starts at the top.
+        QMetaObject::invokeMethod(view.window, "scrollTo", Q_ARG(QVariant, 2000.0));
+        const QString other = dir.filePath("other.md");
+        QVERIFY(QFile::copy(path, other));
+        view.backend.open(QUrl::fromLocalFile(other));
+        QTRY_COMPARE(flick->property("contentY").toReal(), 0.0);
+    }
+
     void markdownFilesAreRecognised() {
         QVERIFY(Backend::isMarkdown("notes/README.MD"));
         QVERIFY(Backend::isMarkdown("a.markdown"));

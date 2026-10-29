@@ -2,6 +2,8 @@
 
 #include "codehighlighter.h"
 
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QList>
 #include <QRegularExpression>
 #include <QSet>
@@ -1149,4 +1151,84 @@ QUrl MarkdownRenderer::resolveUrl(const QString &url, const QUrl &baseUrl, const
     if (trimmed.startsWith(QLatin1Char('/')) && rootUrl.isValid())
         return rootUrl.resolved(QUrl(trimmed.mid(1)));
     return baseUrl.resolved(parsed);
+}
+
+namespace {
+
+// What a block shows, apart from what changes with the blocks around it: its
+// gap, the lists and quotes it sits in, which number their items, and its
+// anchor, which a heading of the same name before it moves on.
+QString blockKey(const QVariant &block) {
+    QVariantMap map = block.toMap();
+    map.remove(QStringLiteral("gap"));
+    map.remove(QStringLiteral("containers"));
+    map.remove(QStringLiteral("anchor"));
+    return QString::fromUtf8(QJsonDocument(QJsonObject::fromVariantMap(map)).toJson(QJsonDocument::Compact));
+}
+
+}
+
+int MarkdownRenderer::followBlock(const QVariantList &before, int index, const QVariantList &after, bool *same) {
+    if (same)
+        *same = false;
+    if (after.isEmpty())
+        return -1;
+    if (index < 0 || index >= before.size())
+        return 0;
+
+    QStringList oldKeys, newKeys;
+    for (const QVariant &block : before)
+        oldKeys.append(blockKey(block));
+    for (const QVariant &block : after)
+        newKeys.append(blockKey(block));
+    const qsizetype oldCount = oldKeys.size(), newCount = newKeys.size();
+
+    // What is the same at the start and at the end of the file moves only by
+    // what changed between.
+    qsizetype head = 0;
+    while (head < oldCount && head < newCount && oldKeys.at(head) == newKeys.at(head))
+        ++head;
+    qsizetype tail = 0;
+    while (tail < oldCount - head && tail < newCount - head
+           && oldKeys.at(oldCount - 1 - tail) == newKeys.at(newCount - 1 - tail))
+        ++tail;
+    if (index < head || index >= oldCount - tail) {
+        if (same)
+            *same = true;
+        return index < head ? index : int(index + newCount - oldCount);
+    }
+
+    // Between them, the block's place is as far past the nearest block before
+    // it that is there once, before and after, as it was.
+    const qsizetype oldEnd = oldCount - tail, newEnd = newCount - tail;
+    QHash<QString, int> oldTimes, newTimes;
+    QHash<QString, qsizetype> newAt;
+    for (qsizetype i = head; i < oldEnd; ++i)
+        ++oldTimes[oldKeys.at(i)];
+    for (qsizetype i = head; i < newEnd; ++i) {
+        ++newTimes[newKeys.at(i)];
+        newAt.insert(newKeys.at(i), i);
+    }
+    qsizetype place = index;
+    for (qsizetype i = index - 1; i >= head; --i) {
+        const QString &key = oldKeys.at(i);
+        if (oldTimes.value(key) == 1 && newTimes.value(key) == 1) {
+            place = newAt.value(key) + (index - i);
+            break;
+        }
+    }
+    place = newEnd > head ? qBound(head, place, newEnd - 1) : qMin(head, newCount - 1);
+
+    // The block itself, the copy nearest that place when there are several.
+    qsizetype found = -1;
+    for (qsizetype i = head; i < newEnd; ++i) {
+        if (newKeys.at(i) == oldKeys.at(index) && (found < 0 || qAbs(i - place) < qAbs(found - place)))
+            found = i;
+    }
+    if (found >= 0) {
+        if (same)
+            *same = true;
+        return int(found);
+    }
+    return int(place);
 }

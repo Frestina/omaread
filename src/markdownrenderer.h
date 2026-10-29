@@ -38,4 +38,10 @@ QString slugify(const QString &text);
 
 QUrl resolveUrl(const QString &url, const QUrl &baseUrl, const QUrl &rootUrl);
 
+// Where the block at index in before, a file's blocks, is in after, the same
+// file's blocks once it changed: the same block, the copy nearest its place
+// when there are several, or, when it was itself changed, the block now in its
+// place. same says whether it was found as it was.
+int followBlock(const QVariantList &before, int index, const QVariantList &after, bool *same = nullptr);
+
 }

@@ -74,6 +74,12 @@ without opening a window.
 - `Ctrl+E` opens the file in Omawrite, when it is installed. Omaread keeps
   showing the file and updates as you save.
 - `Ctrl+R` or `F5` reloads, though changes on disk are picked up by themselves.
+  Either way the page keeps your place: the block at the top of the window
+  stays there, as far into it as before, when text above it is added, removed
+  or changed, and while images above it load. If that block itself changed,
+  the block now in its place takes its spot; if its text is in the file more
+  than once, the copy nearest where it was. At the very top, the page stays
+  at the top.
 - `Alt+Left` or `Backspace` goes back after following a link.
 - `Ctrl+=` and `Ctrl+-` change the text size, `Ctrl+0` returns to the default.
   `Ctrl+scroll` does the same.

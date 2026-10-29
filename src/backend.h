@@ -73,6 +73,9 @@ public:
     Q_INVOKABLE void activateLink(const QString &href, qreal position);
     Q_INVOKABLE void goBack();
     Q_INVOKABLE int anchorIndex(const QString &anchor) const;
+    // Where the block at index before the last reload is now, as {index,
+    // same}; see MarkdownRenderer::followBlock.
+    Q_INVOKABLE QVariantMap followBlock(int index) const;
     Q_INVOKABLE void edit();
     Q_INVOKABLE void copyText(const QString &text);
     // Marks find in page's matches in one text's document, a TextEdit's
@@ -126,6 +129,8 @@ private:
     QUrl m_rootUrl;
     QByteArray m_contents;
     QVariantList m_blocks;
+    // The blocks before the last reload, to find the reader's place in.
+    QVariantList m_previousBlocks;
     QHash<QString, int> m_anchors;
     int m_figureCount = 0;
     Figures m_figures;
