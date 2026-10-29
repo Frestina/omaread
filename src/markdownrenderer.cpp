@@ -393,6 +393,7 @@ private:
         add({{"type", "heading"},
              {"level", cmark_node_get_heading_level(node)},
              {"html", inlines(node)},
+             {"text", emojify(plainText(node)).simplified()},
              {"anchor", anchor}});
     }
 

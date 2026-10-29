@@ -10,6 +10,7 @@
         <file alias="SearchIconButton.qml">SearchIconButton.qml</file>
         <file alias="FooterIconButton.qml">FooterIconButton.qml</file>
         <file alias="ShortcutsDialog.qml">ShortcutsDialog.qml</file>
+        <file alias="Outline.qml">Outline.qml</file>
         <file alias="drawmath.cjs">drawmath.cjs</file>
     </qresource>
 </RCC>

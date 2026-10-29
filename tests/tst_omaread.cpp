@@ -39,6 +39,8 @@ struct Window {
     QQuickWindow *window = nullptr;
 
     Window() {
+        // Whatever a run before left remembered.
+        backend.setOutlineOpen(false);
         engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
         engine.load(QUrl(QStringLiteral("qrc:/Main.qml")));
         window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
@@ -54,7 +56,21 @@ struct Window {
         return window->findChild<T *>(QLatin1String(name));
     }
 
+    // An item a view made, such as a list's entry, which only the items it
+    // sits in know of.
+    QQuickItem *findShown(const char *name, QQuickItem *in = nullptr) const {
+        in = in ? in : window->contentItem();
+        for (QQuickItem *child : in->childItems()) {
+            if (child->objectName() == QLatin1String(name))
+                return child;
+            if (QQuickItem *found = findShown(name, child))
+                return found;
+        }
+        return nullptr;
+    }
+
     void click(QQuickItem *item) const {
+        QVERIFY(item);
         QTest::mouseClick(window, Qt::LeftButton, {},
                           item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint());
     }
@@ -729,6 +745,104 @@ private slots:
         QVERIFY(QFile::copy(path, other));
         view.backend.open(QUrl::fromLocalFile(other));
         QTRY_COMPARE(flick->property("contentY").toReal(), 0.0);
+    }
+
+    void headingsKeepTheirPlainText() {
+        const QVariantMap heading = blockAt(render("# Size of `n` and $x$ :tada:\n"), 0);
+        QCOMPARE(heading.value("text").toString(), QStringLiteral("Size of n and x 🎉"));
+    }
+
+    void theOutlineListsAndGoesToHeadings() {
+        QTemporaryDir dir;
+        const QString path = dir.filePath("guide.md");
+        const auto write = [&path](const QByteArray &extra) {
+            QByteArray text = "# Guide\n\n";
+            const auto prose = [&text](int count) {
+                for (int i = 0; i < count; ++i)
+                    text += "A paragraph long enough to take up some room on the page, and then a little more.\n\n";
+            };
+            prose(20);
+            text += "## Setup\n\n";
+            prose(20);
+            text += "<details>\n<summary>More</summary>\n\n### Hidden\n\nTucked away.\n\n</details>\n\n## Use\n\n";
+            prose(30);
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write(text + extra);
+        };
+        const auto place = [](QObject *window) {
+            QVariant result;
+            QMetaObject::invokeMethod(window, "placeOnScreen", Q_RETURN_ARG(QVariant, result));
+            return result.toMap().value("index").toInt();
+        };
+
+        write({});
+        Window view;
+        QVERIFY(view.window);
+        view.backend.open(QUrl::fromLocalFile(path));
+        QQuickItem *outline = view.find("outline");
+        QVERIFY(outline);
+        QVERIFY(!outline->isVisible());
+
+        // Ctrl+Shift+O shows it, and that is remembered.
+        QTest::keyClick(view.window, Qt::Key_O, Qt::ControlModifier | Qt::ShiftModifier);
+        QTRY_VERIFY(outline->isVisible());
+        QVERIFY(QSettings().value("outline/open").toBool());
+        const QVariantList headings = outline->property("headings").toList();
+        QCOMPARE(headings.size(), 4);
+        QCOMPARE(headings.at(2).toMap().value("text").toString(), QStringLiteral("Hidden"));
+        QCOMPARE(outline->property("topLevel").toInt(), 1);
+        // Beside the page in a wide window.
+        QVERIFY(!outline->property("floating").toBool());
+
+        // A click goes to its heading, which is then the current one.
+        view.click(view.findShown("outlineEntry3"));
+        const int use = headings.at(3).toMap().value("index").toInt();
+        QTRY_COMPARE(place(view.window), use);
+        QTRY_COMPARE(outline->property("current").toInt(), 3);
+
+        // A heading in a closed <details> opens it.
+        view.click(view.findShown("outlineEntry2"));
+        const int hidden = headings.at(2).toMap().value("index").toInt();
+        QTRY_COMPARE(place(view.window), hidden);
+        QTRY_COMPARE(outline->property("current").toInt(), 2);
+
+        // Over the page in a narrow window.
+        view.window->resize(560, 800);
+        QTRY_VERIFY(outline->property("floating").toBool());
+        // Esc closes it there, as a popup.
+        QTest::keyClick(view.window, Qt::Key_Escape);
+        QTRY_VERIFY(!outline->isVisible());
+        view.backend.setOutlineOpen(true);
+        view.window->resize(1000, 800);
+        QTRY_VERIFY(!outline->property("floating").toBool());
+
+        // A reload brings new headings in, and keeps the place being read.
+        QMetaObject::invokeMethod(view.window, "scrollTo", Q_ARG(QVariant, 1500.0));
+        const int reading = place(view.window);
+        write("## Later\n\nAdded.\n");
+        view.backend.reload();
+        QTRY_COMPARE(outline->property("headings").toList().size(), 5);
+        QTRY_COMPARE(place(view.window), reading);
+
+        // Without headings there is no outline, and nothing to toggle.
+        const QString plain = dir.filePath("plain.md");
+        QFile file(plain);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("Just a paragraph.\n");
+        file.close();
+        view.backend.open(QUrl::fromLocalFile(plain));
+        QTRY_VERIFY(!outline->isVisible());
+        QTest::keyClick(view.window, Qt::Key_O, Qt::ControlModifier | Qt::ShiftModifier);
+        QVERIFY(view.backend.outlineOpen());
+        QVERIFY(!view.find("outlineButton")->isEnabled());
+
+        // Ctrl+Shift+O hides it again.
+        view.backend.open(QUrl::fromLocalFile(path));
+        QTRY_VERIFY(outline->isVisible());
+        QTest::keyClick(view.window, Qt::Key_O, Qt::ControlModifier | Qt::ShiftModifier);
+        QTRY_VERIFY(!outline->isVisible());
+        QVERIFY(!QSettings().value("outline/open").toBool());
     }
 
     void markdownFilesAreRecognised() {

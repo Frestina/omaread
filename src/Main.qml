@@ -22,7 +22,18 @@ ApplicationWindow {
     readonly property int bodySize: scaled(16)
     readonly property int footerHeight: scaled(28)
     // github.com's reading column, with a margin either side.
-    readonly property int columnWidth: Math.max(0, Math.min(scaled(880), width - 2 * scaled(32)))
+    readonly property int columnWidth: Math.max(0, Math.min(scaled(880), flick.width - 2 * scaled(32)))
+    // The headings, for the outline, as {index, level, text}.
+    readonly property var headings: backend.blocks.reduce((out, block, index) => {
+        if (block.type === "heading")
+            out.push({ index: index, level: block.level, text: block.text });
+        return out;
+    }, [])
+    readonly property bool outlineShown: backend.outlineOpen && headings.length > 0
+    readonly property int outlineWidth: scaled(296)
+    // The outline sits beside the page while the text keeps a comfortable
+    // measure, and over it in a narrower window.
+    readonly property bool outlineDocked: width - outlineWidth >= scaled(640) + 2 * scaled(32)
     property string hoveredLink: ""
     property var selectionOwner: null
     // The block being read when the file was about to be shown again, as
@@ -31,6 +42,7 @@ ApplicationWindow {
     // The place the page holds while blocks above it change height, as
     // images load, until the reader scrolls: {index, offset}, or {top: true}.
     property var heldPlace: null
+    property bool placing: false
     // The <details> opened or closed by hand, by id; the rest are as the file
     // has them.
     property var detailsState: ({})
@@ -117,7 +129,10 @@ ApplicationWindow {
     }
 
     function scrollTo(y) {
+        // A place the reader goes to wins over one being restored.
+        readingPlace = null;
         heldPlace = null;
+        glide.stop();
         flick.cancelFlick();
         flick.contentY = Math.max(0, Math.min(y, maxY()));
     }
@@ -140,7 +155,9 @@ ApplicationWindow {
     function restorePlace() {
         var place = readingPlace;
         readingPlace = null;
-        if (!place || place.top) {
+        if (!place)
+            return;
+        if (place.top) {
             holdPlace({ top: true });
             return;
         }
@@ -160,8 +177,13 @@ ApplicationWindow {
     function holdPlace(place) {
         if (place !== undefined)
             heldPlace = place;
-        if (!heldPlace)
+        if (!heldPlace || placing)
             return;
+        // New blocks are placed when the page is next laid out; place them
+        // now, to measure.
+        placing = true;
+        page.forceLayout();
+        placing = false;
         var item = heldPlace.top ? null : blocks.itemAt(heldPlace.index);
         if (!heldPlace.top && !item) {
             heldPlace = null;
@@ -171,7 +193,48 @@ ApplicationWindow {
         flick.contentY = item ? Math.max(0, Math.min(page.y + item.y + heldPlace.offset, maxY())) : 0;
     }
 
+    // The heading being read: the last one at or above the top of the
+    // window, or at the very bottom, the last one on screen.
+    function currentHeading() {
+        var top = flick.contentY + findRoom + scaled(24);
+        var atBottom = flick.contentY >= maxY() - 1 && maxY() > 0;
+        var current = -1;
+        for (var i = 0; i < headings.length; ++i) {
+            var item = blocks.itemAt(headings[i].index);
+            if (!item || item.folded)
+                continue;
+            var y = page.y + item.y + item.gapTop;
+            if (y <= top || (atBottom && y < flick.contentY + flick.height))
+                current = i;
+            else if (!atBottom)
+                break;
+        }
+        return current;
+    }
+
+    // Glides to a block, as the outline goes to a heading, opening any
+    // <details> it is folded in first; it then holds as images above load.
+    function glideToBlock(index) {
+        page.forceLayout();
+        var item = blocks.itemAt(index);
+        if (!item)
+            return;
+        if (item.folded) {
+            unfold(item.block);
+            Qt.callLater(glideToBlock, index);
+            return;
+        }
+        readingPlace = null;
+        heldPlace = null;
+        flick.cancelFlick();
+        glide.stop();
+        glide.index = index;
+        glide.to = Math.max(0, Math.min(page.y + item.y + item.gapTop - scaled(16), maxY()));
+        glide.start();
+    }
+
     function scrollToAnchor(anchor) {
+        page.forceLayout();
         var index = backend.anchorIndex(anchor);
         var item = index >= 0 ? blocks.itemAt(index) : null;
         if (!item)
@@ -390,6 +453,19 @@ ApplicationWindow {
         onActivated: win.closeFind()
     }
 
+    Shortcut {
+        sequence: "Ctrl+Shift+O"
+        enabled: win.headings.length > 0
+        onActivated: backend.outlineOpen = !backend.outlineOpen
+    }
+
+    // An outline over the page closes as a popup would.
+    Shortcut {
+        sequence: "Escape"
+        enabled: win.outlineShown && !win.outlineDocked && !win.findOpen && !shortcutsDialog.opened
+        onActivated: backend.outlineOpen = false
+    }
+
     // As in Omawrite.
     Shortcut {
         sequences: ["F1", "Ctrl+/", "Ctrl+?"]
@@ -496,7 +572,7 @@ ApplicationWindow {
         objectName: "flick"
         anchors {
             left: parent.left
-            right: parent.right
+            right: win.outlineShown && win.outlineDocked ? outline.left : parent.right
             top: parent.top
             bottom: footer.top
         }
@@ -515,8 +591,31 @@ ApplicationWindow {
 
         // The page holds its place as what is above it changes height, until
         // the reader scrolls.
-        onContentHeightChanged: win.holdPlace()
-        onMovementStarted: win.heldPlace = null
+        onContentHeightChanged: {
+            win.holdPlace();
+            outline.current = win.currentHeading();
+        }
+        onContentYChanged: outline.current = win.currentHeading()
+        onMovementStarted: {
+            glide.stop();
+            win.readingPlace = null;
+            win.heldPlace = null;
+        }
+
+        NumberAnimation {
+            id: glide
+            property int index: -1
+            target: flick
+            property: "contentY"
+            duration: 250
+            easing.type: Easing.OutCubic
+            // Images above may have moved it meanwhile; the heading holds.
+            onFinished: {
+                var item = blocks.itemAt(index);
+                if (item)
+                    win.holdPlace({ index: index, offset: item.gapTop - win.scaled(16) });
+            }
+        }
 
         Keys.onPressed: (event) => {
             var line = win.scaled(48);
@@ -565,6 +664,8 @@ ApplicationWindow {
             x: Math.round((flick.width - win.columnWidth) / 2)
             y: win.scaled(40) + win.findRoom
             width: win.columnWidth
+            // Blocks can move without the page changing height.
+            onPositioningComplete: win.holdPlace()
 
             Repeater {
                 id: blocks
@@ -582,7 +683,7 @@ ApplicationWindow {
         anchors {
             top: parent.top
             left: parent.left
-            right: parent.right
+            right: flick.right
             topMargin: 12
             leftMargin: 12
             rightMargin: 12
@@ -702,6 +803,24 @@ ApplicationWindow {
         }
     }
 
+    Outline {
+        id: outline
+        anchors {
+            right: parent.right
+            top: parent.top
+            bottom: footer.top
+            margins: floating ? win.scaled(12) : 0
+        }
+        width: win.outlineWidth
+        visible: win.outlineShown
+        floating: !win.outlineDocked
+        z: floating ? 5 : 0
+        headings: win.headings
+        onChosen: (index) => win.glideToBlock(index)
+        onCloseRequested: backend.outlineOpen = false
+        Component.onCompleted: current = win.currentHeading()
+    }
+
     DropArea {
         anchors.fill: parent
         onDropped: (drop) => {
@@ -735,6 +854,15 @@ ApplicationWindow {
                 iconName: "open"
                 tooltip: "Open (Ctrl+O)"
                 onClicked: openDialog.open()
+            }
+
+            FooterIconButton {
+                objectName: "outlineButton"
+                iconName: "outline"
+                active: win.outlineShown
+                enabled: win.headings.length > 0
+                tooltip: enabled ? "Outline (Ctrl+Shift+O)" : "No headings to outline"
+                onClicked: backend.outlineOpen = !backend.outlineOpen
             }
 
             FooterIconButton {

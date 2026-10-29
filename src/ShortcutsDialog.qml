@@ -38,6 +38,7 @@ Popup {
             { keys: ["Ctrl+-"], desc: "Smaller text" },
             { keys: ["Ctrl+0"], desc: "Default text size" },
             { keys: ["Ctrl+scroll"], desc: "Change the text size" },
+            { keys: ["Ctrl+Shift+O"], desc: "Outline" },
             { keys: ["F11", "Super+F"], desc: "Fullscreen" },
             { keys: ["F1", "Ctrl+/", "Ctrl+?"], desc: "Keyboard shortcuts" }
         ] }

@@ -25,6 +25,7 @@ int main(int argc, char *argv[]) {
     QStringList args = app.arguments().mid(1);
     bool dark = true;
     qreal scroll = 0;
+    bool outline = false;
     while (!args.isEmpty() && args.first().startsWith(QLatin1String("--"))) {
         const QString option = args.takeFirst();
         if (option == QLatin1String("--light"))
@@ -33,9 +34,11 @@ int main(int argc, char *argv[]) {
             dark = true;
         else if (option == QLatin1String("--scroll") && !args.isEmpty())
             scroll = args.takeFirst().toDouble();
+        else if (option == QLatin1String("--outline"))
+            outline = true;
     }
     if (args.size() != 2) {
-        QTextStream(stderr) << "usage: snapshot [--light | --dark] [--scroll Y] FILE OUT.png|OUT.pdf\n";
+        QTextStream(stderr) << "usage: snapshot [--light | --dark] [--scroll Y] [--outline] FILE OUT.png|OUT.pdf\n";
         return 2;
     }
     const QUrl file = QUrl::fromLocalFile(QFileInfo(args.at(0)).absoluteFilePath());
@@ -43,6 +46,8 @@ int main(int argc, char *argv[]) {
 
     Backend backend;
     backend.setDarkMode(dark);
+    // The outline shows only when asked for, whatever was last remembered.
+    backend.setOutlineOpen(outline);
 
     if (out.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive)) {
         backend.open(file);

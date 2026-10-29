@@ -34,6 +34,7 @@ namespace {
 constexpr qreal textZoomSteps[] = {0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0};
 constexpr int textZoomStepCount = int(sizeof(textZoomSteps) / sizeof(textZoomSteps[0]));
 const QString textZoomSetting = QStringLiteral("textZoom");
+const QString outlineSetting = QStringLiteral("outline/open");
 
 const QStringList markdownSuffixes{QStringLiteral("md"), QStringLiteral("markdown"),
                                    QStringLiteral("mdown"), QStringLiteral("mkd"),
@@ -137,6 +138,7 @@ QUrl repositoryRoot(const QString &directory) {
 Backend::Backend(QObject *parent) : QObject(parent) {
     m_textZoom = qBound(textZoomSteps[0], QSettings().value(textZoomSetting, 1.0).toReal(),
                         textZoomSteps[textZoomStepCount - 1]);
+    m_outlineOpen = QSettings().value(outlineSetting, false).toBool();
 
     // GitHub sets text in the system's sans, Noto Sans on Linux, and code in
     // its monospace.
@@ -621,6 +623,14 @@ qreal Backend::steppedTextZoom(int direction) const {
             closest = step;
     }
     return textZoomSteps[qBound(0, closest + direction, textZoomStepCount - 1)];
+}
+
+void Backend::setOutlineOpen(bool open) {
+    if (m_outlineOpen == open)
+        return;
+    m_outlineOpen = open;
+    QSettings().setValue(outlineSetting, open);
+    emit outlineOpenChanged();
 }
 
 void Backend::setTextZoom(qreal zoom) {

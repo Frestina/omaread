@@ -3,16 +3,20 @@ import QtQuick.Controls
 import QtQuick.Window
 
 // A small line icon in the footer, as Omawrite's: a folder to open a file, a
-// keyboard for the shortcuts. Drawn on a 16-pixel grid scaled to the text.
+// list for the outline, a keyboard for the shortcuts. Drawn on a 16-pixel
+// grid scaled to the text.
 Item {
     id: control
 
     property string iconName
     property color iconColor: win.colors.muted
     property string tooltip
+    // Drawn in the accent while what it shows is open.
+    property bool active: false
 
     signal clicked()
 
+    opacity: enabled ? 1 : 0.4
     width: win.scaled(16)
     height: win.scaled(16)
 
@@ -39,7 +43,8 @@ Item {
             var unit = dpr * control.width / 16;
             context.setTransform(unit, 0, 0, unit, 0, 0);
             context.clearRect(0, 0, 16, 16);
-            context.strokeStyle = hitArea.containsMouse ? win.colors.foreground : control.iconColor;
+            context.strokeStyle = control.active ? win.colors.link
+                : hitArea.containsMouse ? win.colors.foreground : control.iconColor;
             context.lineWidth = 1.4;
             context.lineCap = "round";
             context.lineJoin = "round";
@@ -61,6 +66,14 @@ Item {
                 }
                 context.moveTo(5.5, 10.5);
                 context.lineTo(10.5, 10.5);
+            } else if (control.iconName === "outline") {
+                // GitHub's list: a bullet and a line for each heading.
+                for (var y = 4; y <= 12; y += 4) {
+                    context.moveTo(2.5, y);
+                    context.lineTo(2.51, y);
+                    context.moveTo(5.5, y);
+                    context.lineTo(13.5, y);
+                }
             } else {
                 context.moveTo(2.5, 13);
                 context.lineTo(2.5, 3.5);
@@ -77,6 +90,7 @@ Item {
             target: control
             function onIconColorChanged() { iconCanvas.requestPaint(); }
             function onIconNameChanged() { iconCanvas.requestPaint(); }
+            function onActiveChanged() { iconCanvas.requestPaint(); }
         }
 
         Connections {
@@ -90,6 +104,7 @@ Item {
         anchors.centerIn: parent
         width: win.scaled(28)
         height: win.scaled(28)
+        enabled: control.enabled
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: control.clicked()

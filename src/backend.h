@@ -34,6 +34,8 @@ class Backend : public QObject {
     Q_PROPERTY(QString textFont READ textFont CONSTANT)
     Q_PROPERTY(QString codeFont READ codeFont CONSTANT)
     Q_PROPERTY(bool canEdit READ canEdit CONSTANT)
+    // Whether the outline of headings shows, remembered between runs.
+    Q_PROPERTY(bool outlineOpen READ outlineOpen WRITE setOutlineOpen NOTIFY outlineOpenChanged)
 
 public:
     explicit Backend(QObject *parent = nullptr);
@@ -53,6 +55,8 @@ public:
     QString textFont() const { return m_textFont; }
     QString codeFont() const { return m_codeFont; }
     bool canEdit() const { return m_canEdit; }
+    bool outlineOpen() const { return m_outlineOpen; }
+    void setOutlineOpen(bool open);
 
     void setDarkMode(bool darkMode);
     void setDesktopTextScale(qreal textScale);
@@ -98,6 +102,7 @@ signals:
     void statusChanged();
     void colorsChanged();
     void textScaleChanged();
+    void outlineOpenChanged();
     // The file changed on disk and is about to be shown again; the view
     // keeps its place.
     void aboutToReload();
@@ -129,6 +134,7 @@ private:
     QUrl m_rootUrl;
     QByteArray m_contents;
     QVariantList m_blocks;
+    bool m_outlineOpen = false;
     // The blocks before the last reload, to find the reader's place in.
     QVariantList m_previousBlocks;
     QHash<QString, int> m_anchors;
