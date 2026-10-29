@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+# Remakes the README's screenshots, docs/omaread-light.png and
+# docs/omaread-dark.png, from the made-up project in tools/demo/stargazer.
+# It is read from a stand-in home folder, so the footer shows
+# ~/projects/stargazer/README.md and nothing of this machine.
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/projects"
+cp -r "$ROOT/tools/demo/stargazer" "$tmp/projects/"
+
+for palette in light dark; do
+  "$ROOT/bin/snapshot" --home "$tmp" --"$palette" \
+    "$tmp/projects/stargazer/README.md" "$ROOT/docs/omaread-$palette.png"
+done

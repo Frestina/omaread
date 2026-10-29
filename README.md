@@ -6,8 +6,8 @@ keeps up with the file as it changes. It is modelled on
 [Omawrite](https://github.com/omacom/omawrite), and the two work as a pair:
 write in one, read in the other.
 
-<img width="1956" height="1196" alt="Omaread showing a project README in GitHub's light colours" src="docs/omaread-light.png" />
-<img width="1956" height="1196" alt="The same README in GitHub's dark colours" src="docs/omaread-dark.png" />
+<img width="1960" height="1200" alt="Omaread showing a project README in GitHub's light colours" src="docs/omaread-light.png" />
+<img width="1960" height="1200" alt="The same README in GitHub's dark colours" src="docs/omaread-dark.png" />
 
 Files are parsed by [cmark-gfm](https://github.com/github/cmark-gfm), the
 parser github.com itself uses, with the same extensions. That covers tables,
@@ -90,6 +90,24 @@ pacman and may ask for authentication. To make Omaread what opens `.md` files:
 ```sh
 xdg-mime default omaread.desktop text/markdown text/x-markdown
 ```
+
+## Seeing changes without a window
+
+`bin/snapshot` renders a file offscreen, to look at a change without opening
+Omaread: a PNG of the window, or the printed pages as a PDF.
+
+```sh
+./bin/snapshot README.md /tmp/readme.png                 # in your Omarchy theme
+./bin/snapshot --light --size 800x1200 README.md /tmp/readme.png
+./bin/snapshot --dark --scroll 900 README.md /tmp/further-down.png
+./bin/snapshot README.md /tmp/readme.pdf                 # as printed, on A4
+```
+
+QML warnings show in the terminal. `--light` and `--dark` use GitHub's own
+colours instead of the Omarchy theme.
+
+`bin/screenshots` remakes the two screenshots above from a made-up project in
+`tools/demo/stargazer`.
 
 ## Not yet
 

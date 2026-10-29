@@ -1,0 +1,74 @@
+#!/usr/bin/env sh
+# Shows what Omaread draws without opening a window: FILE as a PNG screenshot
+# of the window, or printed to a PDF, all offscreen.
+#
+#   bin/snapshot [--size WxH] [--scale N] [--light | --dark] [--home DIR] [--scroll Y] FILE OUT.png
+#   bin/snapshot FILE OUT.pdf
+#
+# --size is the window in pixels (default 980x600) and --scale its pixel
+# ratio (default 2). Your Omarchy theme applies unless --light or --dark asks
+# for GitHub's own colours, which runs with an empty home folder; --home runs
+# with DIR as the home folder instead. Qt's messages, QML warnings among them,
+# go to the terminal.
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+BUILD_DIR="$ROOT/build-tools"
+
+usage() {
+  sed -n '5,6s/^# //p' "$0" >&2
+  exit 2
+}
+
+size=980x600
+scale=2
+home=
+palette=
+scroll=
+while [ $# -gt 0 ]; do
+  case $1 in
+  --size) size=$2; shift 2 ;;
+  --scale) scale=$2; shift 2 ;;
+  --light | --dark) palette=$1; shift ;;
+  --home) home=$2; shift 2 ;;
+  --scroll) scroll=$2; shift 2 ;;
+  -*) usage ;;
+  *) break ;;
+  esac
+done
+[ $# -eq 2 ] || usage
+file=$(realpath -- "$1")
+out=$(realpath -m -- "$2")
+
+if command -v qmake6 >/dev/null 2>&1; then
+  QMAKE=qmake6
+else
+  QMAKE=qmake
+fi
+mkdir -p "$BUILD_DIR"
+(cd "$BUILD_DIR" && "$QMAKE" "$ROOT/tools/snapshot.pro" >/dev/null && make -s -j"$(nproc 2>/dev/null || echo 1)")
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Omaread's window fills the offscreen screen, so the screen is the window.
+width=${size%x*}
+height=${size#*x}
+printf '{"screens":[{"name":"snapshot","x":0,"y":0,"width":%d,"height":%d,"logicalDpi":96,"logicalBaseDpi":96,"dpr":%d}]}\n' \
+  $((width * scale)) $((height * scale)) "$scale" >"$tmp/screens.json"
+
+if [ -z "$home" ] && [ -n "$palette" ]; then
+  home=$tmp/home
+  mkdir -p "$home"
+fi
+if [ -n "$home" ]; then
+  HOME=$(realpath -- "$home")
+  export HOME
+fi
+
+set -- "$file" "$out"
+[ -z "$scroll" ] || set -- --scroll "$scroll" "$@"
+[ -z "$palette" ] || set -- "$palette" "$@"
+QT_QPA_PLATFORM="offscreen:configfile=$tmp/screens.json" QT_FORCE_STDERR_LOGGING=1 \
+  "$BUILD_DIR/snapshot" "$@"
+echo "Wrote $out"
