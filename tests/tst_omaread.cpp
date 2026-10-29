@@ -7,6 +7,7 @@
 #include <QQuickItem>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QScopeGuard>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTextBlock>
@@ -464,6 +465,7 @@ private slots:
         script.setPermissions(script.permissions() | QFile::ExeOwner);
         const QByteArray path = qgetenv("PATH");
         qputenv("PATH", dir.path().toUtf8() + ':' + path);
+        const auto restorePath = qScopeGuard([&path]() { qputenv("PATH", path); });
 
         Figures figures;
         figures.m_timeout = 500;
@@ -479,7 +481,6 @@ private slots:
         QVERIFY(pid > 0);
         QTRY_VERIFY(!figures.drawing());
         QTRY_VERIFY_WITH_TIMEOUT(::kill(pid, 0) != 0, 5000);
-        qputenv("PATH", path);
 
         // Nothing is left in the cache but the will to try again next time.
         QVERIFY(cache.entryList({"*.mmd", "*.json", "*.err"}, QDir::Files).isEmpty());
