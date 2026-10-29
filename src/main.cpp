@@ -12,7 +12,7 @@
 #include "cli.h"
 #include "systemtheme.h"
 
-#define OMAREAD_VERSION "0.4.1"
+#define OMAREAD_VERSION "0.4.2"
 
 int main(int argc, char *argv[]) {
     // Answered before the application exists, so they need no display.
