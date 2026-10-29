@@ -825,13 +825,19 @@ private:
         return images;
     }
 
-    // HTML a README carries, made safe and fit for Qt's rich text: scripts and
-    // styles go, image sources resolve, and <details> shows open, since rich
-    // text has nothing to fold it with.
+    // HTML a README carries, made safe and fit for Qt's rich text: scripts,
+    // styles and style attributes go, as GitHub's sanitizer drops them,
+    // image sources resolve, and <details> shows open, since rich text has
+    // nothing to fold it with.
     QString cleanHtml(QString html) const {
         static const QRegularExpression dropped(
             QStringLiteral(R"re(<(script|style|iframe|textarea|title|noembed|noframes|xmp|plaintext)\b.*?</\1\s*>)re"),
             QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        // What is left of them, such as a tag on its own in a line, which
+        // cmark hands over one tag at a time.
+        static const QRegularExpression droppedTags(
+            QStringLiteral(R"re(</?(script|style|iframe|textarea|title|noembed|noframes|xmp|plaintext)\b[^>]*>)re"),
+            QRegularExpression::CaseInsensitiveOption);
         static const QRegularExpression comments(
             QStringLiteral("<!--.*?-->"), QRegularExpression::DotMatchesEverythingOption);
         static const QRegularExpression details(
@@ -841,31 +847,54 @@ private:
         static const QRegularExpression summaryClose(
             QStringLiteral(R"re(</summary\s*>)re"), QRegularExpression::CaseInsensitiveOption);
         html.remove(dropped);
+        html.remove(droppedTags);
         html.remove(comments);
         html.remove(details);
         html.replace(summaryOpen, QStringLiteral("<p><b>▾ "));
         html.replace(summaryClose, QStringLiteral("</b></p>"));
 
-        static const QRegularExpression source(
-            QStringLiteral(R"re((<img\b[^>]*?\bsrc\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))re"),
-            QRegularExpression::CaseInsensitiveOption);
+        static const QRegularExpression tag(QStringLiteral(R"re(<([A-Za-z][\w-]*)([^>]*)>)re"));
         QString out;
         qsizetype last = 0;
-        auto it = source.globalMatch(html);
+        auto it = tag.globalMatch(html);
         while (it.hasNext()) {
             const QRegularExpressionMatch match = it.next();
-            QString value = match.captured(2);
-            if (value.isNull())
-                value = match.captured(3);
-            if (value.isNull())
-                value = match.captured(4);
             out += html.mid(last, match.capturedStart() - last);
-            out += match.captured(1) + QLatin1Char('"')
-                + imageUrl(value).toString().toHtmlEscaped() + QLatin1Char('"');
+            out += QLatin1Char('<') + match.captured(1)
+                + cleanAttributes(match.captured(1).toLower() == QLatin1String("img"), match.captured(2))
+                + QLatin1Char('>');
             last = match.capturedEnd();
         }
         out += html.mid(last);
         return withMath(emojifyHtml(out.trimmed()), [this](const Formula &formula) { return inlineMath(formula); });
+    }
+
+    // A tag's attributes without style, and with an image's source resolved.
+    QString cleanAttributes(bool isImage, const QString &attributes) const {
+        static const QRegularExpression attribute(
+            QStringLiteral(R"re(\s*([A-Za-z][\w:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))re"));
+        QString out;
+        qsizetype last = 0;
+        auto it = attribute.globalMatch(attributes);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch match = it.next();
+            out += attributes.mid(last, match.capturedStart() - last);
+            last = match.capturedEnd();
+            const QString name = match.captured(1).toLower();
+            if (name == QLatin1String("style"))
+                continue;
+            if (isImage && name == QLatin1String("src")) {
+                QString value = match.captured(2);
+                if (value.isNull())
+                    value = match.captured(3);
+                if (value.isNull())
+                    value = match.captured(4);
+                out += QStringLiteral(" src=\"") + imageUrl(value).toString().toHtmlEscaped() + QLatin1Char('"');
+                continue;
+            }
+            out += match.captured(0);
+        }
+        return out + attributes.mid(last);
     }
 
     void footnote(cmark_node *node) {

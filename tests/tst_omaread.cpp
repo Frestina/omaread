@@ -235,6 +235,23 @@ private slots:
             "<!-- hidden -->\n\n<p>Hi<script>alert(1)</script><style>p{}</style></p>\n");
         QCOMPARE(rendered.blocks.size(), 1);
         QCOMPARE(blockAt(rendered, 0).value("html").toString(), QStringLiteral("<p>Hi</p>"));
+
+        // A style that is never closed, or sits in a line, styles nothing,
+        // and neither do style attributes.
+        QCOMPARE(blockAt(render("<div><style>a{color:inherit}</div>\n"), 0).value("html").toString(),
+                 QStringLiteral("<div>a{color:inherit}</div>"));
+        QCOMPARE(blockAt(render("Big <style>a{}</style> <span style=\"font-size:100000px\" title=t>x</span>\n"), 0)
+                     .value("html").toString(),
+                 QStringLiteral("Big a{} <span title=t>x</span>"));
+    }
+
+    void onlyAnImagesOwnSourceResolves() {
+        const RenderedMarkdown rendered = render(
+            "<p>See <img data-src=\"lazy.png\" alt=\"a src=x\" src=\"real.png\"> here</p>\n");
+        const QString html = blockAt(rendered, 0).value("html").toString();
+        QVERIFY(html.contains(QStringLiteral("data-src=\"lazy.png\"")));
+        QVERIFY(html.contains(QStringLiteral("alt=\"a src=x\"")));
+        QVERIFY(html.contains(QStringLiteral(" src=\"file:///repo/docs/real.png\"")));
     }
 
     void detailsFoldTheirContent() {
