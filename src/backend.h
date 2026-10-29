@@ -80,6 +80,10 @@ public:
     // one to show as current, or -1.
     Q_INVOKABLE QVariantList find(QObject *textDocument, const QString &query, int current) const;
     Q_INVOKABLE void printDocument();
+    // Where Save as PDF suggests the PDF goes: beside the file, named after it.
+    Q_INVOKABLE QUrl pdfUrl() const;
+    // Prints the document to a PDF at url, as printing to a file would.
+    Q_INVOKABLE void savePdf(const QUrl &url);
     Q_INVOKABLE void increaseTextSize();
     Q_INVOKABLE void decreaseTextSize();
     Q_INVOKABLE void resetTextSize();

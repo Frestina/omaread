@@ -66,8 +66,11 @@ without opening a window.
   button at the bottom left.
 - `Ctrl+O` opens a Markdown file through the portal picker, as does the folder
   button at the bottom left. Dropping a file on the window works too.
-- `Ctrl+P` prints, or saves a PDF through the print dialog. The page is laid
-  out as on screen, in GitHub's light colours whatever the screen shows.
+- `Ctrl+P` prints. The page is laid out as on screen, in GitHub's light
+  colours whatever the screen shows.
+- `Ctrl+Shift+S` saves the same pages as a PDF, without the print dialog. The
+  file chooser suggests the file's own name and folder, as `notes.pdf` beside
+  `notes.md`.
 - `Ctrl+E` opens the file in Omawrite, when it is installed. Omaread keeps
   showing the file and updates as you save.
 - `Ctrl+R` or `F5` reloads, though changes on disk are picked up by themselves.

@@ -39,7 +39,6 @@ struct Window {
     QQuickWindow *window = nullptr;
 
     Window() {
-        QQuickStyle::setStyle(QStringLiteral("Material"));
         engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
         engine.load(QUrl(QStringLiteral("qrc:/Main.qml")));
         window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
@@ -69,6 +68,8 @@ private slots:
     // Figures are drawn into a cache of the tests' own.
     void initTestCase() {
         QStandardPaths::setTestModeEnabled(true);
+        // Omaread's style, for every window the tests show.
+        QQuickStyle::setStyle(QStringLiteral("Material"));
         QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).removeRecursively();
     }
 
@@ -587,6 +588,34 @@ private slots:
         // Every shortcut the window answers is listed.
         QCOMPARE(dialog->property("sections").toList().size(), 4);
         QVERIFY(view.find("openButton"));
+    }
+
+    void savesAPdfBesideTheFile() {
+        QTemporaryDir dir;
+        QFile markdown(dir.filePath("notes.md"));
+        QVERIFY(markdown.open(QIODevice::WriteOnly));
+        markdown.write("# Notes\n\nSome text.\n");
+        markdown.close();
+
+        Window view;
+        QVERIFY(view.window);
+        view.backend.open(QUrl::fromLocalFile(markdown.fileName()));
+        const QUrl pdf = view.backend.pdfUrl();
+        QCOMPARE(pdf, QUrl::fromLocalFile(dir.filePath("notes.pdf")));
+
+        // The picker suggests it.
+        QObject *dialog = view.find<QObject>("pdfDialog");
+        QVERIFY(dialog);
+        QTest::keyClick(view.window, Qt::Key_S, Qt::ControlModifier | Qt::ShiftModifier);
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        QCOMPARE(dialog->property("selectedFile").toUrl(), pdf);
+        QMetaObject::invokeMethod(dialog, "close");
+
+        view.backend.savePdf(pdf);
+        QFile saved(pdf.toLocalFile());
+        QVERIFY(saved.open(QIODevice::ReadOnly));
+        QVERIFY(saved.read(5) == "%PDF-");
+        QCOMPARE(view.backend.status(), QStringLiteral("Saved notes.pdf"));
     }
 
     void markdownFilesAreRecognised() {

@@ -357,6 +357,29 @@ ApplicationWindow {
         onActivated: backend.printDocument()
     }
 
+    // The PDF printing would make, saved without the print dialog: the
+    // picker suggests the file's own name and folder.
+    Dialogs.FileDialog {
+        id: pdfDialog
+        objectName: "pdfDialog"
+        title: "Save as PDF"
+        fileMode: Dialogs.FileDialog.SaveFile
+        nameFilters: ["PDF (*.pdf)"]
+        defaultSuffix: "pdf"
+        onAccepted: backend.savePdf(selectedFile)
+    }
+
+    Shortcut {
+        sequence: "Ctrl+Shift+S"
+        enabled: backend.blocks.length > 0
+        onActivated: {
+            var url = backend.pdfUrl();
+            pdfDialog.currentFolder = url.toString().replace(/\/[^\/]*$/, "");
+            pdfDialog.selectedFile = url;
+            pdfDialog.open();
+        }
+    }
+
     Shortcut {
         sequences: ["Ctrl+R", "F5"]
         onActivated: backend.reload()

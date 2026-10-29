@@ -12,6 +12,7 @@ Popup {
         { title: "File", shortcuts: [
             { keys: ["Ctrl+O"], desc: "Open a file" },
             { keys: ["Ctrl+P"], desc: "Print" },
+            { keys: ["Ctrl+Shift+S"], desc: "Save as PDF" },
             { keys: ["Ctrl+E"], desc: "Edit in Omawrite" },
             { keys: ["Ctrl+R", "F5"], desc: "Reload" },
             { keys: ["Alt+Left", "Backspace"], desc: "Go back" },

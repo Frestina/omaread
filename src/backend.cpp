@@ -366,6 +366,30 @@ void Backend::printDocument() {
                   : QStringLiteral("Sent %1 to %2").arg(fileName(), printer.printerName()));
 }
 
+QUrl Backend::pdfUrl() const {
+    if (m_path.isEmpty())
+        return {};
+    const QFileInfo info(m_path);
+    return QUrl::fromLocalFile(info.absolutePath() + QLatin1Char('/') + info.completeBaseName()
+                               + QStringLiteral(".pdf"));
+}
+
+void Backend::savePdf(const QUrl &url) {
+    if (m_blocks.isEmpty()) {
+        setStatus(QStringLiteral("There is nothing to save"));
+        return;
+    }
+
+    const QString path = url.toLocalFile();
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setDocName(fileName());
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(path);
+    printTo(printer);
+    setStatus(QFileInfo::exists(path) ? QStringLiteral("Saved %1").arg(QFileInfo(path).fileName())
+                                      : QStringLiteral("Could not save %1").arg(QFileInfo(path).fileName()));
+}
+
 void Backend::printTo(QPrinter &printer) {
     // Formulas and diagrams are drawn again in the colours of the page.
     QVariantList blocks = m_blocks;
