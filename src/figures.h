@@ -57,5 +57,9 @@ private:
     QString m_dir;
     QHash<QString, Figure> m_wanted;
     QSet<QString> m_drawing;
+    // What was not drawn for a reason that may pass, such as a program that
+    // timed out or would not start, is not asked for again until Omaread
+    // starts again; what a program could not draw it marks .failed for good.
+    QSet<QString> m_failed;
     QList<QProcess *> m_processes;
 };

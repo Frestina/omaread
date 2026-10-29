@@ -78,6 +78,30 @@ struct Window {
                           item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint());
     }
 };
+// A stand-in for node, first on the PATH while it lives, that draws every
+// formula it is given as a blank picture after a while, or, told to fail,
+// draws nothing.
+struct FakeNode {
+    QTemporaryDir dir;
+    QByteArray path = qgetenv("PATH");
+
+    explicit FakeNode(const char *wait, bool fails = false) {
+        QFile script(dir.filePath(QStringLiteral("node")));
+        if (!script.open(QIODevice::WriteOnly))
+            return;
+        // node -e SCRIPT MATHJAX_DIR OUT_DIR SCALE < formulas.json
+        script.write(QByteArray("#!/bin/sh\nsleep ") + wait + "\n"
+                     + (fails ? "exit 1\n"
+                              : "for key in $(grep -o '\"key\":\"[0-9a-f]*\"' | cut -d'\"' -f4); do\n"
+                                "  printf '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" "
+                                "height=\"8\"/>' > \"$4/$key.svg\"\n"
+                                "done\n"));
+        script.setPermissions(script.permissions() | QFile::ExeOwner);
+        qputenv("PATH", dir.path().toUtf8() + ':' + path);
+    }
+    ~FakeNode() { qputenv("PATH", path); }
+};
+
 }
 
 class OmareadTest : public QObject {
@@ -363,6 +387,49 @@ private slots:
         QVERIFY(figures.picture("math", "\\mathbb{R}", false, colors, false).isEmpty());
         figures.drawWanted();
         QVERIFY(!figures.drawing());
+    }
+
+    void printingDrawsWhileTheScreenIsDrawing() {
+        if (!QFile::exists(QStringLiteral("/usr/share/mathjax/tex-svg.js")))
+            QSKIP("mathjax is not installed");
+        FakeNode node("0.5");
+        Figures figures;
+        QSignalSpy drawn(&figures, &Figures::drawn);
+        const QVariantMap screen{{"foreground", "#ffffff"}}, paper{{"foreground", "#1f2328"}};
+        QVERIFY(figures.picture("math", "a + b", false, screen, true).isEmpty());
+        figures.drawWanted();
+        QVERIFY(figures.drawing());
+
+        // Printing asks for the same formula in the paper's colour, and waits.
+        QVERIFY(figures.picture("math", "a + b", false, paper, false).isEmpty());
+        figures.drawWantedNow(60000);
+        QVERIFY(figures.picture("math", "a + b", false, paper, false).contains("src"));
+        QVERIFY(figures.picture("math", "a + b", false, screen, true).contains("src"));
+        // The page is shown again only once printing is done with it.
+        QCOMPARE(drawn.count(), 0);
+        QTRY_COMPARE(drawn.count(), 1);
+        QVERIFY(!figures.drawing());
+    }
+
+    void figuresNotDrawnForAPassingReasonAreAskedForAgainLater() {
+        if (!QFile::exists(QStringLiteral("/usr/share/mathjax/tex-svg.js")))
+            QSKIP("mathjax is not installed");
+        const QVariantMap colors{{"foreground", "#1f2328"}};
+        {
+            FakeNode node("0", true);
+            Figures figures;
+            QVERIFY(figures.picture("math", "c - d", false, colors, false).isEmpty());
+            figures.drawWantedNow(60000);
+            // Not asked for again while Omaread runs.
+            QVERIFY(figures.picture("math", "c - d", false, colors, false).isEmpty());
+            figures.drawWanted();
+            QVERIFY(!figures.drawing());
+        }
+        FakeNode node("0");
+        Figures figures;
+        QVERIFY(figures.picture("math", "c - d", false, colors, false).isEmpty());
+        figures.drawWantedNow(60000);
+        QVERIFY(figures.picture("math", "c - d", false, colors, false).contains("src"));
     }
 
     void mermaidBlocksBecomeDiagrams() {

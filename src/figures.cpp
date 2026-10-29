@@ -7,10 +7,13 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPointer>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
+
+#include <utility>
 
 namespace {
 
@@ -133,7 +136,8 @@ QVariantMap Figures::picture(const QString &kind, const QString &source, bool di
     }
     if (!canDraw(kind))
         return {{"missing", true}};
-    if (QFile::exists(m_dir + QLatin1Char('/') + figure.key + QStringLiteral(".failed")))
+    if (m_failed.contains(figure.key)
+        || QFile::exists(m_dir + QLatin1Char('/') + figure.key + QStringLiteral(".failed")))
         return {};
     if (!m_drawing.contains(figure.key))
         m_wanted.insert(figure.key, figure);
@@ -158,9 +162,13 @@ void Figures::drawWanted() {
         m_processes.append(process);
         connect(process, &QProcess::finished, this, [this, process, figures]() {
             finish(process, figures);
+            // Not straight away: printing may be waiting on this one, and the
+            // page must not be shown again under it.
             if (m_processes.isEmpty()) {
-                emit drawn();
-                drawWanted();
+                QMetaObject::invokeMethod(this, [this]() {
+                    emit drawn();
+                    drawWanted();
+                }, Qt::QueuedConnection);
             }
         });
         // One that cannot start, or hangs, finishes all the same.
@@ -173,15 +181,26 @@ void Figures::drawWanted() {
 }
 
 void Figures::drawWantedNow(int timeout) {
+    // What is wanted now is drawn here, not left to what finishes drawing in
+    // the background meanwhile.
+    const QHash<QString, Figure> wanted = std::exchange(m_wanted, {});
+    QList<QPointer<QProcess>> running;
     for (QProcess *process : std::as_const(m_processes))
-        process->waitForFinished(timeout);
+        running.append(process);
+    for (const QPointer<QProcess> &process : std::as_const(running)) {
+        if (process)
+            process->waitForFinished(timeout);
+    }
+
     QHash<QString, QList<Figure>> byKind;
-    for (const Figure &figure : std::as_const(m_wanted))
+    for (const Figure &figure : wanted)
         byKind[figure.kind].append(figure);
-    m_wanted.clear();
     for (auto it = byKind.cbegin(); it != byKind.cend(); ++it) {
         QProcess *process = start(it.key(), it.value());
-        process->waitForFinished(qMax(timeout, drawingTimeout * int(it.value().size())));
+        if (!process->waitForFinished(qMax(timeout, drawingTimeout * int(it.value().size())))) {
+            process->kill();
+            process->waitForFinished(1000);
+        }
         finish(process, it.value());
     }
 }
@@ -223,17 +242,13 @@ QProcess *Figures::start(const QString &kind, const QList<Figure> &figures) {
     return process;
 }
 
-// A figure the program did not draw is marked as failed, so it is not asked
-// for again; it shows as its source.
+// A figure the program did not draw, nor marked as failed, is not asked for
+// again while Omaread runs; it shows as its source.
 void Figures::finish(QProcess *process, const QList<Figure> &figures) {
     for (const Figure &figure : figures) {
         m_drawing.remove(figure.key);
-        const QString failed = m_dir + QLatin1Char('/') + figure.key + QStringLiteral(".failed");
-        if (!QFile::exists(file(figure)) && !QFile::exists(failed)) {
-            QFile marker(failed);
-            if (!marker.open(QIODevice::WriteOnly))
-                qWarning("Could not write %s", qPrintable(failed));
-        }
+        if (!QFile::exists(file(figure)))
+            m_failed.insert(figure.key);
     }
     m_processes.removeOne(process);
     process->deleteLater();
