@@ -141,6 +141,172 @@ QString emojifyHtml(const QString &html) {
     return out + emojify(html.mid(last));
 }
 
+struct Formula {
+    QString tex;
+    bool display = false;
+};
+
+// Where a formula stood in the text, by its index: private-use characters
+// cmark passes through as they are.
+QString mathPlaceholder(qsizetype index) {
+    return QChar(0xE000) + QString::number(index) + QChar(0xE001);
+}
+
+const QRegularExpression &mathPlaceholders() {
+    static const QRegularExpression placeholder(QStringLiteral(R"re(\x{E000}(\d+)\x{E001})re"));
+    return placeholder;
+}
+
+// The end of the $…$ that opens at start, as GitHub reads it: no space just
+// inside either dollar, and no digit just after, so "$5 and $10" stays
+// money. Code is not math, so a backtick ends the search. -1 when there is
+// none.
+qsizetype inlineMathEnd(const QString &line, qsizetype start) {
+    if (start + 1 >= line.size() || line.at(start + 1).isSpace())
+        return -1;
+    for (qsizetype at = start + 1; at < line.size(); ++at) {
+        const QChar c = line.at(at);
+        if (c == QLatin1Char('\\')) {
+            ++at;
+            continue;
+        }
+        if (c == QLatin1Char('`'))
+            return -1;
+        if (c != QLatin1Char('$'))
+            continue;
+        if (line.at(at - 1).isSpace() || (at + 1 < line.size() && line.at(at + 1).isDigit()))
+            return -1;
+        return at;
+    }
+    return -1;
+}
+
+// One line's inline math taken out: $…$, $$…$$ and $`…`$. Code spans and
+// escaped dollars keep theirs.
+QString takeInlineMath(const QString &line, QList<Formula> &formulas) {
+    QString out;
+    qsizetype at = 0;
+    const auto take = [&](const QString &tex, bool display, qsizetype end) {
+        formulas.append({tex, display});
+        out += mathPlaceholder(formulas.size() - 1);
+        at = end;
+    };
+    const auto ticksAt = [&line](qsizetype from) {
+        qsizetype end = from;
+        while (end < line.size() && line.at(end) == QLatin1Char('`'))
+            ++end;
+        return end - from;
+    };
+    while (at < line.size()) {
+        const QChar c = line.at(at);
+        if (c == QLatin1Char('\\')) {
+            out += line.mid(at, 2);
+            at += 2;
+            continue;
+        }
+        if (c == QLatin1Char('`')) {
+            // A code span, copied whole; a run with no closing one is text.
+            const qsizetype ticks = ticksAt(at);
+            const QString run(ticks, QLatin1Char('`'));
+            qsizetype close = line.indexOf(run, at + ticks);
+            while (close >= 0 && ticksAt(close) != ticks)
+                close = line.indexOf(run, close + ticksAt(close));
+            const qsizetype end = close < 0 ? at + ticks : close + ticks;
+            out += line.mid(at, end - at);
+            at = end;
+            continue;
+        }
+        if (c != QLatin1Char('$')) {
+            out += c;
+            ++at;
+            continue;
+        }
+        if (at + 1 < line.size() && line.at(at + 1) == QLatin1Char('`')) {
+            const qsizetype ticks = ticksAt(at + 1);
+            const QString closing = QString(ticks, QLatin1Char('`')) + QLatin1Char('$');
+            const qsizetype close = line.indexOf(closing, at + 1 + ticks);
+            if (close >= 0) {
+                take(line.mid(at + 1 + ticks, close - at - 1 - ticks), false, close + closing.size());
+                continue;
+            }
+        } else if (line.mid(at, 2) == QLatin1String("$$")) {
+            const qsizetype close = line.indexOf(QLatin1String("$$"), at + 2);
+            if (close > at + 2) {
+                take(line.mid(at + 2, close - at - 2).trimmed(), true, close + 2);
+                continue;
+            }
+            out += QLatin1String("$$");
+            at += 2;
+            continue;
+        } else if (const qsizetype close = inlineMathEnd(line, at); close >= 0) {
+            take(line.mid(at + 1, close - at - 1), false, close + 1);
+            continue;
+        }
+        out += c;
+        ++at;
+    }
+    return out;
+}
+
+// GitHub's math taken out of the Markdown before cmark reads it, so its
+// escapes and emphasis leave the TeX alone, and left as placeholders where
+// it stood. A $$ alone at the start of a line opens a display formula that
+// runs to the next $$. Fenced code keeps its dollars.
+QString takeMath(const QString &markdown, QList<Formula> &formulas) {
+    static const QRegularExpression fence(QStringLiteral(R"re(^([ \t>]*)(`{3,}|~{3,})(.*)$)re"));
+    static const QRegularExpression displayStart(QStringLiteral(R"re(^([ \t>]*)\$\$(.*)$)re"));
+    const QStringList lines = markdown.split(QLatin1Char('\n'));
+    QStringList out;
+    QString openFence;
+    for (qsizetype index = 0; index < lines.size(); ++index) {
+        const QString &line = lines.at(index);
+        if (const QRegularExpressionMatch match = fence.match(line); match.hasMatch()) {
+            const QString marker = match.captured(2);
+            if (openFence.isEmpty())
+                openFence = marker;
+            else if (marker.at(0) == openFence.at(0) && marker.size() >= openFence.size()
+                     && match.captured(3).trimmed().isEmpty())
+                openFence.clear();
+            out.append(line);
+            continue;
+        }
+        if (!openFence.isEmpty()) {
+            out.append(line);
+            continue;
+        }
+
+        const QRegularExpressionMatch start = displayStart.match(line);
+        if (start.hasMatch() && !start.captured(2).contains(QLatin1String("$$"))) {
+            const QString prefix = start.captured(1);
+            QStringList tex{start.captured(2)};
+            bool closed = false;
+            qsizetype end = index + 1;
+            for (; end < lines.size() && !closed; ++end) {
+                QString next = lines.at(end);
+                // A blank line ends the paragraph, and the formula with it.
+                if (next.trimmed() == prefix.trimmed())
+                    break;
+                if (next.startsWith(prefix))
+                    next = next.mid(prefix.size());
+                const qsizetype close = next.indexOf(QLatin1String("$$"));
+                tex.append(close < 0 ? next : next.left(close));
+                if (close >= 0) {
+                    formulas.append({tex.join(QLatin1Char('\n')).trimmed(), true});
+                    out.append(prefix + mathPlaceholder(formulas.size() - 1)
+                               + takeInlineMath(next.mid(close + 2), formulas));
+                    closed = true;
+                }
+            }
+            if (closed) {
+                index = end - 1;
+                continue;
+            }
+        }
+        out.append(takeInlineMath(line, formulas));
+    }
+    return out.join(QLatin1Char('\n'));
+}
+
 struct Container {
     QString kind;        // "quote", "item" or "details"
     int id = 0;
@@ -155,12 +321,15 @@ struct Container {
 
 class Builder {
 public:
-    Builder(const QUrl &baseUrl, const QUrl &rootUrl) : m_baseUrl(baseUrl), m_rootUrl(rootUrl) {}
+    Builder(const QUrl &baseUrl, const QUrl &rootUrl, const QList<Formula> &formulas,
+            const MarkdownRenderer::FigureLookup &figure)
+        : m_baseUrl(baseUrl), m_rootUrl(rootUrl), m_formulas(formulas), m_figure(figure) {}
 
     void document(cmark_node *document) {
         children(document);
         flushDetails();
         finish();
+        result.figures = m_figureCount;
     }
 
     RenderedMarkdown result;
@@ -226,6 +395,19 @@ private:
     }
 
     void paragraph(cmark_node *node) {
+        // A display formula on its own.
+        cmark_node *only = cmark_node_first_child(node);
+        if (only && !cmark_node_next(only) && cmark_node_get_type(only) == CMARK_NODE_TEXT) {
+            const QRegularExpressionMatch match = mathPlaceholders().match(literal(only).trimmed());
+            if (match.hasMatch() && match.capturedLength() == literal(only).trimmed().size()) {
+                const Formula &formula = m_formulas.at(match.captured(1).toInt());
+                if (formula.display) {
+                    displayMath(formula.tex);
+                    return;
+                }
+            }
+        }
+
         QVariantList images;
         if (imageParagraph(node, images)) {
             add({{"type", "images"}, {"images", images}, {"align", currentAlign()}});
@@ -399,10 +581,62 @@ private:
             text.chop(1);
         const char *info = cmark_node_get_fence_info(node);
         const QString language = info ? QString::fromUtf8(info).section(QLatin1Char(' '), 0, 0) : QString();
+        if (language == QLatin1String("math")) {
+            displayMath(text);
+            return;
+        }
         add({{"type", "code"},
              {"code", text},
              {"language", language},
              {"html", CodeHighlighter::html(text, language)}});
+    }
+
+    // A formula on a line of its own, centred, or its TeX as code until
+    // there is a picture of it.
+    void displayMath(const QString &tex) {
+        const QVariantMap picture = figure(QStringLiteral("math"), tex, true);
+        if (picture.isEmpty()) {
+            add({{"type", "code"}, {"code", tex}, {"language", "math"}, {"html", QString()}});
+            return;
+        }
+        QVariantMap image = picture;
+        image.insert(QStringLiteral("alt"), tex);
+        image.insert(QStringLiteral("href"), QString());
+        image.insert(QStringLiteral("figure"), true);
+        add({{"type", "images"}, {"images", QVariantList{image}}, {"align", "center"}});
+    }
+
+    // A formula in a line of text: a picture set on the text's middle, or
+    // its TeX as code. Pictures are measured for 16px text; the view scales
+    // them with the text.
+    QString inlineMath(const Formula &formula) const {
+        const QVariantMap picture = figure(QStringLiteral("math"), formula.tex, formula.display);
+        if (picture.isEmpty())
+            return QLatin1String("<code>") + formula.tex.toHtmlEscaped() + QLatin1String("</code>");
+        return QStringLiteral("<img class=\"math\" src=\"%1\" width=\"%2\" height=\"%3\" style=\"vertical-align: middle;\">")
+            .arg(picture.value("src").toString().toHtmlEscaped())
+            .arg(picture.value("width").toDouble(), 0, 'f', 1)
+            .arg(picture.value("height").toDouble(), 0, 'f', 1);
+    }
+
+    // Text with each formula's placeholder swapped, by make, for what shows it.
+    QString withMath(const QString &text, const std::function<QString(const Formula &)> &make) const {
+        if (!text.contains(QChar(0xE000)))
+            return text;
+        QString out;
+        qsizetype last = 0;
+        auto it = mathPlaceholders().globalMatch(text);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch match = it.next();
+            out += text.mid(last, match.capturedStart() - last) + make(m_formulas.value(match.captured(1).toInt()));
+            last = match.capturedEnd();
+        }
+        return out + text.mid(last);
+    }
+
+    QVariantMap figure(const QString &kind, const QString &source, bool display) const {
+        ++m_figureCount;
+        return m_figure ? m_figure(kind, source, display) : QVariantMap();
     }
 
     void table(cmark_node *node) {
@@ -603,7 +837,7 @@ private:
             last = match.capturedEnd();
         }
         out += html.mid(last);
-        return emojifyHtml(out.trimmed());
+        return withMath(emojifyHtml(out.trimmed()), [this](const Formula &formula) { return inlineMath(formula); });
     }
 
     void footnote(cmark_node *node) {
@@ -655,11 +889,15 @@ private:
                 text += literal(node);
                 continue;
             }
-            out += emojify(text).toHtmlEscaped();
+            out += textHtml(text);
             text.clear();
             inlineNode(node, out);
         }
-        return out + emojify(text).toHtmlEscaped();
+        return out + textHtml(text);
+    }
+
+    QString textHtml(const QString &text) const {
+        return withMath(emojify(text).toHtmlEscaped(), [this](const Formula &formula) { return inlineMath(formula); });
     }
 
     // Inline Markdown, all but text, as the HTML subset Qt's rich text
@@ -712,7 +950,12 @@ private:
             out += inlines(node);
     }
 
-    static QString plainText(cmark_node *parent) {
+    // The text alone, formulas as their TeX.
+    QString plainText(cmark_node *parent) const {
+        return withMath(plainTextOf(parent), [](const Formula &formula) { return formula.tex; });
+    }
+
+    static QString plainTextOf(cmark_node *parent) {
         QString text;
         for (cmark_node *node = cmark_node_first_child(parent); node; node = cmark_node_next(node)) {
             switch (cmark_node_get_type(node)) {
@@ -725,7 +968,7 @@ private:
                 text += QLatin1Char(' ');
                 break;
             default:
-                text += plainText(node);
+                text += plainTextOf(node);
             }
         }
         return text;
@@ -828,22 +1071,27 @@ private:
     int m_footnoteListId = 0;
     int m_footnoteDepth = 0;
     int m_nextId = 1;
+    QList<Formula> m_formulas;
+    MarkdownRenderer::FigureLookup m_figure;
+    mutable int m_figureCount = 0;
 };
 
 }
 
 RenderedMarkdown MarkdownRenderer::render(const QByteArray &markdown, const QUrl &baseUrl,
-                                          const QUrl &rootUrl) {
+                                          const QUrl &rootUrl, const FigureLookup &figure) {
+    QList<Formula> formulas;
+    const QByteArray text = takeMath(QString::fromUtf8(markdown), formulas).toUtf8();
     cmark_gfm_core_extensions_ensure_registered();
     cmark_parser *parser = cmark_parser_new(CMARK_OPT_FOOTNOTES | CMARK_OPT_VALIDATE_UTF8);
     for (const char *name : extensionNames) {
         if (cmark_syntax_extension *extension = cmark_find_syntax_extension(name))
             cmark_parser_attach_syntax_extension(parser, extension);
     }
-    cmark_parser_feed(parser, markdown.constData(), size_t(markdown.size()));
+    cmark_parser_feed(parser, text.constData(), size_t(text.size()));
     cmark_node *document = cmark_parser_finish(parser);
 
-    Builder builder(baseUrl, rootUrl);
+    Builder builder(baseUrl, rootUrl, formulas, figure);
     builder.document(document);
 
     cmark_node_free(document);

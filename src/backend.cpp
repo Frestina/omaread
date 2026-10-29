@@ -145,6 +145,7 @@ Backend::Backend(QObject *parent) : QObject(parent) {
         : QFontDatabase::systemFont(QFontDatabase::GeneralFont).family();
     m_codeFont = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
     m_canEdit = !QStandardPaths::findExecutable(QStringLiteral("omawrite")).isEmpty();
+    connect(&m_figures, &Figures::drawn, this, &Backend::rerender);
 
     // Editors save by replacing the file, which shows up as a burst of
     // changes, and the file briefly missing; let it settle first.
@@ -225,9 +226,7 @@ bool Backend::load(const QString &path, bool reloading) {
     m_path = info.absoluteFilePath();
     m_contents = contents;
     m_rootUrl = repositoryRoot(info.absolutePath());
-    const RenderedMarkdown rendered = MarkdownRenderer::render(contents, baseUrl(), m_rootUrl);
-    m_blocks = rendered.blocks;
-    m_anchors = rendered.anchors;
+    render();
     m_error.clear();
     m_fileMissing = false;
     watchFile();
@@ -235,7 +234,35 @@ bool Backend::load(const QString &path, bool reloading) {
     if (reloading)
         emit aboutToReload();
     emit documentChanged();
+    m_figures.drawWanted();
     return true;
+}
+
+void Backend::render() {
+    const RenderedMarkdown rendered = MarkdownRenderer::render(m_contents, baseUrl(), m_rootUrl,
+                                                               figureLookup(m_colors, m_darkMode));
+    m_blocks = rendered.blocks;
+    m_anchors = rendered.anchors;
+    m_figureCount = rendered.figures;
+}
+
+void Backend::rerender() {
+    if (m_path.isEmpty() || m_figureCount == 0)
+        return;
+    const QVariantList before = m_blocks;
+    render();
+    if (m_blocks != before) {
+        emit aboutToReload();
+        emit documentChanged();
+        emit documentLoaded(QString(), -1);
+    }
+    m_figures.drawWanted();
+}
+
+MarkdownRenderer::FigureLookup Backend::figureLookup(const QVariantMap &colors, bool darkMode) {
+    return [this, colors, darkMode](const QString &kind, const QString &source, bool display) {
+        return m_figures.picture(kind, source, display, colors, darkMode);
+    };
 }
 
 void Backend::reload() {
@@ -340,9 +367,18 @@ void Backend::printDocument() {
 }
 
 void Backend::printTo(QPrinter &printer) {
+    // Formulas and diagrams are drawn again in the colours of the page.
+    QVariantList blocks = m_blocks;
+    if (m_figureCount > 0) {
+        const QVariantMap paper = themeColors({}, false, nullptr);
+        MarkdownRenderer::render(m_contents, baseUrl(), m_rootUrl, figureLookup(paper, false));
+        m_figures.drawWantedNow(60000);
+        blocks = MarkdownRenderer::render(m_contents, baseUrl(), m_rootUrl, figureLookup(paper, false)).blocks;
+    }
+
     QTextDocument document;
     QHash<QString, QSize> sizes;
-    const QHash<QString, PrintImage> images = loadPrintImages(PrintDocument::imageSources(m_blocks));
+    const QHash<QString, PrintImage> images = loadPrintImages(PrintDocument::imageSources(blocks));
     for (auto it = images.cbegin(); it != images.cend(); ++it) {
         document.addResource(QTextDocument::ImageResource, QUrl(it.key()), it.value().image);
         sizes.insert(it.key(), it.value().size);
@@ -356,7 +392,7 @@ void Backend::printTo(QPrinter &printer) {
     font.setPointSizeF(11);
     document.setDefaultFont(font);
     document.setDefaultStyleSheet(PrintDocument::styleSheet(m_codeFont));
-    document.setHtml(PrintDocument::html(m_blocks, sizes, width));
+    document.setHtml(PrintDocument::html(blocks, sizes, width));
     document.print(&printer);
 }
 
@@ -506,6 +542,8 @@ void Backend::loadTheme() {
     m_colors = colors;
     m_darkMode = dark;
     emit colorsChanged();
+    // Formulas and diagrams are pictures, drawn in the colours.
+    rerender();
 }
 
 void Backend::watchTheme() {

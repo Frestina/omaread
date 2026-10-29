@@ -19,6 +19,13 @@ Code blocks that name their language are highlighted by
 [KSyntaxHighlighting](https://invent.kde.org/frameworks/syntax-highlighting),
 which knows some three hundred, in GitHub's colours, or with an Omarchy theme in
 the colours its editor themes give each kind of token.
+
+Math, `$…$` in a line and `$$…$$` or a `` ```math `` block on its own, is drawn
+by [MathJax](https://www.mathjax.org), the engine GitHub uses, when `node` and
+Arch's `mathjax` are installed. Formulas are drawn in the background and kept
+in `~/.cache/omaread`; until then, or without MathJax, a formula shows as its
+TeX. Arch's MathJax leaves out the fonts for `\mathbb`, `\mathcal` and the
+like, so formulas using them show as TeX too.
 Colours come from the current Omarchy theme, and fall back to GitHub's own
 light and dark palettes when there is none.
 
@@ -74,6 +81,7 @@ That size is remembered.
 - `cmark-gfm`
 - `syntax-highlighting`, KDE's KSyntaxHighlighting, for code
 - `xdg-desktop-portal` and a portal backend
+- Optionally `nodejs` and `mathjax`, for math
 
 ## Build and install
 
@@ -123,7 +131,7 @@ GitHub's list in [gemoji](https://github.com/github/gemoji).
 
 ## Not yet
 
-Mermaid diagrams and math.
+Mermaid diagrams.
 
 ## License
 

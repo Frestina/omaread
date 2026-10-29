@@ -13,6 +13,9 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include "figures.h"
+#include "markdownrenderer.h"
+
 class QPrinter;
 class QWindow;
 
@@ -56,6 +59,8 @@ public:
     void setParentWindow(QWindow *window);
     // Lays the document out for paper and prints it, without asking.
     void printTo(QPrinter &printer);
+    // Whether formulas or diagrams are still being drawn.
+    bool drawingFigures() const { return m_figures.drawing(); }
 
     static bool isMarkdown(const QString &path);
     static QHash<QString, QString> readTheme(const QString &path);
@@ -99,6 +104,10 @@ private:
 
     bool load(const QString &path, bool reloading);
     void show(const QString &path, const QString &anchor, qreal position);
+    void render();
+    // Shows the file again where it is, for new pictures of its figures.
+    void rerender();
+    MarkdownRenderer::FigureLookup figureLookup(const QVariantMap &colors, bool darkMode);
     void setStatus(const QString &status);
     void setTextZoom(qreal zoom);
     qreal steppedTextZoom(int direction) const;
@@ -114,6 +123,8 @@ private:
     QByteArray m_contents;
     QVariantList m_blocks;
     QHash<QString, int> m_anchors;
+    int m_figureCount = 0;
+    Figures m_figures;
     QString m_error;
     QList<QPair<QString, qreal>> m_history;
     QString m_status;

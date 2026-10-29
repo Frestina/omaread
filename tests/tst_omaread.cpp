@@ -6,6 +6,7 @@
 #include "backend.h"
 #include "cli.h"
 #include "codehighlighter.h"
+#include "figures.h"
 #include "findhighlighter.h"
 #include "markdownrenderer.h"
 #include "printdocument.h"
@@ -31,6 +32,12 @@ class OmareadTest : public QObject {
     Q_OBJECT
 
 private slots:
+    // Figures are drawn into a cache of the tests' own.
+    void initTestCase() {
+        QStandardPaths::setTestModeEnabled(true);
+        QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).removeRecursively();
+    }
+
     void headingsGetGitHubAnchors() {
         const RenderedMarkdown rendered = render("# Hello, *World*!\n\n## Hello, World\n\n### `make` & ünïcode\n");
         QCOMPARE(blockAt(rendered, 0).value("anchor").toString(), QStringLiteral("hello-world"));
@@ -242,6 +249,77 @@ private slots:
         QCOMPARE(blockAt(rendered, 2).value("html").toString(),
                  QStringLiteral("<p align=\"center\">Made with ❤️ <code>:heart:</code> <a title=\":x:\">❌</a></p>"));
         QCOMPARE(blockAt(rendered, 3).value("code").toString(), QStringLiteral(":tada:"));
+    }
+
+    void mathIsTakenOutBeforeMarkdown() {
+        // No pictures: each formula shows its TeX as code.
+        const RenderedMarkdown rendered = render(
+            "Area $\\pi r^2$, $a*b*c$ and $\\{x\\}$; $`a $ b`$ too. Costs $5 and $10, \\$x\\$ and `$code$`.\n\n"
+            "$$\n\\frac{a}{b}\n$$\n\n"
+            "```math\nE = mc^2\n```\n\n"
+            "```sh\necho \"$A$B\"\n```\n\n"
+            "# Size of $n$\n");
+        QCOMPARE(blockAt(rendered, 0).value("html").toString(),
+                 QStringLiteral("Area <code>\\pi r^2</code>, <code>a*b*c</code> and <code>\\{x\\}</code>; "
+                                "<code>a $ b</code> too. Costs $5 and $10, $x$ and <code>$code$</code>."));
+        QCOMPARE(blockAt(rendered, 1).value("type").toString(), QStringLiteral("code"));
+        QCOMPARE(blockAt(rendered, 1).value("language").toString(), QStringLiteral("math"));
+        QCOMPARE(blockAt(rendered, 1).value("code").toString(), QStringLiteral("\\frac{a}{b}"));
+        QCOMPARE(blockAt(rendered, 2).value("code").toString(), QStringLiteral("E = mc^2"));
+        QCOMPARE(blockAt(rendered, 3).value("code").toString(), QStringLiteral("echo \"$A$B\""));
+        QCOMPARE(blockAt(rendered, 4).value("anchor").toString(), QStringLiteral("size-of-n"));
+        QCOMPARE(rendered.figures, 7);
+    }
+
+    void mathShowsAsPictures() {
+        QStringList asked;
+        const auto figure = [&asked](const QString &kind, const QString &source, bool display) {
+            asked.append(QStringLiteral("%1:%2:%3").arg(kind, source).arg(display));
+            return QVariantMap{{"src", "file:///cache/f.svg"}, {"width", 40.0}, {"height", 20.25}};
+        };
+        const RenderedMarkdown rendered = MarkdownRenderer::render(
+            "> Inline $x$.\n>\n> $$\n> y\n> $$\n", baseUrl, rootUrl, figure);
+        QCOMPARE(asked, (QStringList{"math:x:0", "math:y:1"}));
+        QCOMPARE(blockAt(rendered, 0).value("html").toString(),
+                 QStringLiteral("Inline <img class=\"math\" src=\"file:///cache/f.svg\" width=\"40.0\" "
+                                "height=\"20.3\" style=\"vertical-align: middle;\">."));
+        const QVariantMap display = blockAt(rendered, 1);
+        QCOMPARE(display.value("type").toString(), QStringLiteral("images"));
+        QCOMPARE(display.value("align").toString(), QStringLiteral("center"));
+        QCOMPARE(display.value("images").toList().at(0).toMap().value("alt").toString(), QStringLiteral("y"));
+        QCOMPARE(container(display, 0).value("kind").toString(), QStringLiteral("quote"));
+    }
+
+    void formulasAreDrawnByMathJax() {
+        if (!Figures::canDraw(QStringLiteral("math")))
+            QSKIP("node and mathjax are not installed");
+        Figures figures;
+        const QVariantMap colors{{"foreground", "#1f2328"}};
+        QVERIFY(figures.picture("math", "x^2", false, colors, false).isEmpty());
+        QVERIFY(figures.picture("math", "\\mathbb{R}", false, colors, false).isEmpty());
+        figures.drawWantedNow(60000);
+
+        const QVariantMap picture = figures.picture("math", "x^2", false, colors, false);
+        QVERIFY(QFile::exists(QUrl(picture.value("src").toString()).toLocalFile()));
+        // A little over an ex wide, and padded to sit on the text's middle.
+        QVERIFY(picture.value("width").toReal() > 10 && picture.value("width").toReal() < 30);
+        QVERIFY(picture.value("height").toReal() > 15);
+        // Glyphs Arch's MathJax lacks: the formula stays as its TeX, and is
+        // not asked for again.
+        QVERIFY(figures.picture("math", "\\mathbb{R}", false, colors, false).isEmpty());
+        figures.drawWanted();
+        QVERIFY(!figures.drawing());
+    }
+
+    void printedFormulasFitThePrintedText() {
+        const auto figure = [](const QString &, const QString &, bool) {
+            return QVariantMap{{"src", "file:///f.svg"}, {"width", 32.0}, {"height", 16.0}};
+        };
+        const RenderedMarkdown rendered = MarkdownRenderer::render("Inline $x$.\n\n$$\ny\n$$\n", baseUrl, rootUrl, figure);
+        const QString html = PrintDocument::html(rendered.blocks, {{"file:///f.svg", QSize(64, 32)}}, 600);
+        // 11pt paper text is 11/12 of the screen's 16px.
+        QVERIFY(html.contains(QStringLiteral("<img class=\"math\" src=\"file:///f.svg\" width=\"29.3\" height=\"14.7\"")));
+        QVERIFY(html.contains(QStringLiteral("<img src=\"file:///f.svg\" width=\"29\" height=\"15\">")));
     }
 
     void gapsFollowGitHub() {

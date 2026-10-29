@@ -3,6 +3,7 @@
 // bin/snapshot, which builds it and sets up the offscreen screen.
 
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QPrinter>
 #include <QQmlApplicationEngine>
@@ -65,8 +66,13 @@ int main(int argc, char *argv[]) {
     backend.setParentWindow(window);
     backend.open(file);
 
-    // Long enough for images, local or from the web, to load and settle.
+    // Long enough for images, local or from the web, to load and settle, and
+    // for formulas and diagrams to be drawn.
     QTimer::singleShot(2500, &app, [&]() {
+        QElapsedTimer waited;
+        waited.start();
+        while (backend.drawingFigures() && waited.elapsed() < 30000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
         if (scroll > 0)
             QMetaObject::invokeMethod(window, "scrollTo", Q_ARG(QVariant, QVariant(scroll)));
         QTimer::singleShot(300, &app, [&]() {

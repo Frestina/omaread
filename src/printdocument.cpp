@@ -44,7 +44,7 @@ public:
 
     QString write(const QVariantList &blocks) {
         range(blocks, 0, int(blocks.size()), 0, m_pageWidth, false);
-        return m_out;
+        return fitFormulas(m_out);
     }
 
 private:
@@ -213,8 +213,12 @@ private:
         if (natural.isEmpty())
             return image.value("alt").toString().toHtmlEscaped();
 
-        qreal w = image.value("width").toInt();
-        qreal h = image.value("height").toInt();
+        qreal w = image.value("width").toReal();
+        qreal h = image.value("height").toReal();
+        if (image.value("figure").toBool()) {
+            w *= figureScale();
+            h *= figureScale();
+        }
         if (w <= 0 && h <= 0) {
             w = natural.width();
             h = natural.height();
@@ -231,6 +235,29 @@ private:
             .arg(source.toHtmlEscaped())
             .arg(qRound(w))
             .arg(qRound(h));
+    }
+
+    // Formulas are measured for 16px text; paper's is smaller.
+    qreal figureScale() const {
+        return m_bodyPoints * 96 / 72 / 16;
+    }
+
+    QString fitFormulas(const QString &html) const {
+        static const QRegularExpression formula(
+            QStringLiteral(R"re((<img class="math"[^>]*?) width="([\d.]+)" height="([\d.]+)")re"));
+        QString out;
+        qsizetype last = 0;
+        auto it = formula.globalMatch(html);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch match = it.next();
+            out += html.mid(last, match.capturedStart() - last)
+                + QStringLiteral("%1 width=\"%2\" height=\"%3\"")
+                      .arg(match.captured(1))
+                      .arg(match.captured(2).toDouble() * figureScale(), 0, 'f', 1)
+                      .arg(match.captured(3).toDouble() * figureScale(), 0, 'f', 1);
+            last = match.capturedEnd();
+        }
+        return out + html.mid(last);
     }
 
     const QHash<QString, QSize> &m_imageSizes;

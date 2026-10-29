@@ -9,6 +9,8 @@ url='https://github.com/Frestina/omaread'
 license=('MIT')
 install='omaread.install'
 depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'cmark-gfm' 'syntax-highlighting' 'xdg-desktop-portal')
+optdepends=('mathjax: math'
+            'nodejs: math')
 makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative' 'cmark-gfm' 'syntax-highlighting')
 source=()
 sha256sums=()

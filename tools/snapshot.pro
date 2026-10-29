@@ -11,12 +11,14 @@ SOURCES += \
     snapshot.cpp \
     ../src/backend.cpp \
     ../src/codehighlighter.cpp \
+    ../src/figures.cpp \
     ../src/findhighlighter.cpp \
     ../src/markdownrenderer.cpp \
     ../src/printdocument.cpp
 HEADERS += \
     ../src/backend.h \
     ../src/codehighlighter.h \
+    ../src/figures.h \
     ../src/findhighlighter.h \
     ../src/markdownrenderer.h \
     ../src/printdocument.h

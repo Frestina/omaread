@@ -60,6 +60,10 @@ ApplicationWindow {
     // text itself. Line height is a multiple of the text size, as in CSS; Qt's
     // own percentages scale the font's line spacing, which runs tall.
     function richText(html, size, lineHeight) {
+        // Formulas are measured for 16px text, and grow with it.
+        html = html.replace(/(<img class="math"[^>]*?) width="([\d.]+)" height="([\d.]+)"/g,
+                            (match, start, width, height) => start + " width=\"" + width * size / 16
+                                + "\" height=\"" + height * size / 16 + "\"");
         return "<style>a { color: " + colors.link + "; text-decoration: none; }"
             + " code { font-family: '" + backend.codeFont + "'; font-size: " + Math.round(size * 0.85) + "px;"
             + " background-color: " + colors.codeBackground + "; }"

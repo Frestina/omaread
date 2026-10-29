@@ -10,6 +10,7 @@ INCLUDEPATH += /usr/include/KF6/KSyntaxHighlighting
 HEADERS += \
     src/backend.h \
     src/codehighlighter.h \
+    src/figures.h \
     src/cli.h \
     src/findhighlighter.h \
     src/markdownrenderer.h \
@@ -20,6 +21,7 @@ SOURCES += \
     src/main.cpp \
     src/backend.cpp \
     src/codehighlighter.cpp \
+    src/figures.cpp \
     src/cli.cpp \
     src/findhighlighter.cpp \
     src/markdownrenderer.cpp \

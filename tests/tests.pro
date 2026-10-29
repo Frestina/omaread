@@ -11,6 +11,7 @@ SOURCES += \
     tst_omaread.cpp \
     ../src/backend.cpp \
     ../src/codehighlighter.cpp \
+    ../src/figures.cpp \
     ../src/cli.cpp \
     ../src/findhighlighter.cpp \
     ../src/markdownrenderer.cpp \
@@ -18,7 +19,9 @@ SOURCES += \
 HEADERS += \
     ../src/backend.h \
     ../src/codehighlighter.h \
+    ../src/figures.h \
     ../src/cli.h \
     ../src/findhighlighter.h \
     ../src/markdownrenderer.h \
     ../src/printdocument.h
+RESOURCES += ../src/resources.qrc
