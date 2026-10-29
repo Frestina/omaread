@@ -6,7 +6,7 @@ TEMPLATE = app
 
 # The one place the version is written; omaread --version and the shortcuts
 # window read it from here.
-VERSION = 0.4.6
+VERSION = 0.5.0
 DEFINES += OMAREAD_VERSION=\\\"$$VERSION\\\"
 
 LIBS += -lcmark-gfm-extensions -lcmark-gfm -lKF6SyntaxHighlighting
