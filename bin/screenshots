@@ -12,7 +12,8 @@ trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/projects"
 cp -r "$ROOT/tools/demo/stargazer" "$tmp/projects/"
 
-for palette in light dark; do
-  "$ROOT/bin/snapshot" --home "$tmp" --"$palette" \
-    "$tmp/projects/stargazer/README.md" "$ROOT/docs/omaread-$palette.png"
-done
+# The light one shows the contents beside the page.
+"$ROOT/bin/snapshot" --home "$tmp" --light --outline \
+  "$tmp/projects/stargazer/README.md" "$ROOT/docs/omaread-light.png"
+"$ROOT/bin/snapshot" --home "$tmp" --dark \
+  "$tmp/projects/stargazer/README.md" "$ROOT/docs/omaread-dark.png"
