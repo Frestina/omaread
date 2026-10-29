@@ -155,6 +155,20 @@ private slots:
         QCOMPARE(blockAt(rendered, 0).value("language").toString(), QStringLiteral("bash"));
     }
 
+    void shortcodesBecomeEmoji() {
+        const RenderedMarkdown rendered = render(
+            "Ship it :tada: :+1::white_check_mark: :no_such_emoji: `:tada:` **:fire:**\n\n"
+            "| :heart: |\n|---|\n\n"
+            "<p align=\"center\">Made with :heart: <code>:heart:</code> <a title=\":x:\">:x:</a></p>\n\n"
+            "```\n:tada:\n```\n");
+        QCOMPARE(blockAt(rendered, 0).value("html").toString(),
+                 QStringLiteral("Ship it 🎉 👍✅ :no_such_emoji: <code>:tada:</code> <b>🔥</b>"));
+        QCOMPARE(blockAt(rendered, 1).value("header").toStringList(), QStringList{"❤️"});
+        QCOMPARE(blockAt(rendered, 2).value("html").toString(),
+                 QStringLiteral("<p align=\"center\">Made with ❤️ <code>:heart:</code> <a title=\":x:\">❌</a></p>"));
+        QCOMPARE(blockAt(rendered, 3).value("code").toString(), QStringLiteral(":tada:"));
+    }
+
     void gapsFollowGitHub() {
         const RenderedMarkdown rendered = render("Para\n# Head\nText\n\n---\nAfter\n");
         QCOMPARE(blockAt(rendered, 0).value("gap").toInt(), 0);

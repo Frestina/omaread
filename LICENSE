@@ -30,3 +30,12 @@ license:
 Copyright (c) 2026 David Heinemeier Hansson
 
 Released under the MIT License, with the same terms as above.
+
+---
+
+src/emojidata.inc is made from GitHub's emoji list in gemoji
+(https://github.com/github/gemoji), under its license:
+
+Copyright (c) 2019 GitHub, Inc.
+
+Released under the MIT License, with the same terms as above.

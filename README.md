@@ -12,7 +12,8 @@ write in one, read in the other.
 Files are parsed by [cmark-gfm](https://github.com/github/cmark-gfm), the
 parser github.com itself uses, with the same extensions. That covers tables,
 task lists, strikethrough, autolinks and footnotes, plus GitHub's alerts
-(`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`).
+(`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`),
+and GitHub's emoji shortcodes, so `:tada:` shows 🎉.
 Headings, quotes, code panels and tables use github.com's sizes and spacing.
 Colours come from the current Omarchy theme, and fall back to GitHub's own
 light and dark palettes when there is none.
@@ -107,12 +108,13 @@ QML warnings show in the terminal. `--light` and `--dark` use GitHub's own
 colours instead of the Omarchy theme.
 
 `bin/screenshots` remakes the two screenshots above from a made-up project in
-`tools/demo/stargazer`.
+`tools/demo/stargazer`. `tools/update-emoji` remakes the emoji shortcodes from
+GitHub's list in [gemoji](https://github.com/github/gemoji).
 
 ## Not yet
 
-Syntax highlighting in code blocks, find in page, folding `<details>`, emoji
-shortcodes such as `:tada:`, Mermaid diagrams and math.
+Syntax highlighting in code blocks, find in page, folding `<details>`, Mermaid
+diagrams and math.
 
 ## License
 

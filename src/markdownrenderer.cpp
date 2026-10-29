@@ -5,6 +5,9 @@
 #include <QSet>
 #include <QStringList>
 
+#include <algorithm>
+#include <cstring>
+
 #include <cmark-gfm.h>
 #include <cmark-gfm-core-extensions.h>
 
@@ -82,6 +85,55 @@ QHash<QString, QString> tagAttributes(const QString &tag) {
         attributes.insert(match.captured(1).toLower(), value);
     }
     return attributes;
+}
+
+struct Emoji {
+    const char *shortcode;
+    const char *emoji;
+};
+
+// GitHub's shortcodes, sorted.
+const Emoji emojis[] = {
+#include "emojidata.inc"
+};
+
+// `:tada:` as 🎉, as GitHub writes it; a shortcode it does not know stays as
+// written.
+QString emojify(const QString &text) {
+    if (!text.contains(QLatin1Char(':')))
+        return text;
+    static const QRegularExpression shortcode(QStringLiteral(R"re(:([\w+-]+):)re"));
+    QString out;
+    qsizetype last = 0;
+    auto it = shortcode.globalMatch(text);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch match = it.next();
+        const QByteArray name = match.captured(1).toUtf8();
+        const Emoji *end = std::end(emojis);
+        const Emoji *found = std::lower_bound(std::begin(emojis), end, name,
+            [](const Emoji &emoji, const QByteArray &name) { return std::strcmp(emoji.shortcode, name.constData()) < 0; });
+        if (found == end || name != found->shortcode)
+            continue;
+        out += text.mid(last, match.capturedStart() - last) + QString::fromUtf8(found->emoji);
+        last = match.capturedEnd();
+    }
+    return out + text.mid(last);
+}
+
+// The same in HTML, in its text alone: not in tags, and not in code.
+QString emojifyHtml(const QString &html) {
+    static const QRegularExpression skipped(
+        QStringLiteral(R"re(<(code|pre)\b.*?</\1\s*>|<[^>]*>)re"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QString out;
+    qsizetype last = 0;
+    auto it = skipped.globalMatch(html);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch match = it.next();
+        out += emojify(html.mid(last, match.capturedStart() - last)) + match.captured();
+        last = match.capturedEnd();
+    }
+    return out + emojify(html.mid(last));
 }
 
 struct Container {
@@ -473,7 +525,7 @@ private:
             last = match.capturedEnd();
         }
         out += html.mid(last);
-        return out.trimmed();
+        return emojifyHtml(out.trimmed());
     }
 
     void footnote(cmark_node *node) {
@@ -517,17 +569,25 @@ private:
 
     QString inlines(cmark_node *parent) {
         QString out;
-        for (cmark_node *node = cmark_node_first_child(parent); node; node = cmark_node_next(node))
+        // Text comes in runs of nodes, split where cmark tried a `_` or `*`
+        // that came to nothing; a shortcode can span them.
+        QString text;
+        for (cmark_node *node = cmark_node_first_child(parent); node; node = cmark_node_next(node)) {
+            if (cmark_node_get_type(node) == CMARK_NODE_TEXT) {
+                text += literal(node);
+                continue;
+            }
+            out += emojify(text).toHtmlEscaped();
+            text.clear();
             inlineNode(node, out);
-        return out;
+        }
+        return out + emojify(text).toHtmlEscaped();
     }
 
-    // Inline Markdown as the HTML subset Qt's rich text understands.
+    // Inline Markdown, all but text, as the HTML subset Qt's rich text
+    // understands.
     void inlineNode(cmark_node *node, QString &out) {
         switch (cmark_node_get_type(node)) {
-        case CMARK_NODE_TEXT:
-            out += literal(node).toHtmlEscaped();
-            return;
         case CMARK_NODE_SOFTBREAK:
             out += QLatin1Char(' ');
             return;
