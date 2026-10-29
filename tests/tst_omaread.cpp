@@ -487,6 +487,21 @@ private slots:
         QVERIFY(!figures.drawing());
     }
 
+    void picturesNotDrawnForAMonthGo() {
+        const QString dir = Figures().m_dir;
+        QFile old(dir + QStringLiteral("/0123456789abcdef01234567.png"));
+        QFile recent(dir + QStringLiteral("/76543210fedcba9876543210.failed"));
+        QVERIFY(old.open(QIODevice::WriteOnly));
+        QVERIFY(old.setFileTime(QDateTime::currentDateTime().addDays(-31), QFileDevice::FileModificationTime));
+        old.close();
+        QVERIFY(recent.open(QIODevice::WriteOnly));
+        recent.close();
+        Figures figures;
+        QVERIFY(!old.exists());
+        QVERIFY(recent.exists());
+        recent.remove();
+    }
+
     void mermaidBlocksBecomeDiagrams() {
         const QByteArray markdown = "```mermaid\ngraph LR\n  A --> B\n```\n";
         // No picture yet: the source shows as code.

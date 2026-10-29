@@ -1,8 +1,10 @@
 #include "figures.h"
 
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -27,6 +29,9 @@ const QString mathjaxDir = QStringLiteral("/usr/share/mathjax");
 // pictures, drawn larger still for it.
 constexpr int mathScale = 2;
 constexpr int mermaidScale = 3;
+
+// How long a picture is kept, in days.
+constexpr int cacheDays = 30;
 
 int scale(const QString &kind) {
     return kind == QLatin1String("math") ? mathScale : mermaidScale;
@@ -69,6 +74,15 @@ Figures::Figures(QObject *parent)
     : QObject(parent),
       m_dir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/figures")) {
     QDir().mkpath(m_dir);
+    // Each edit of a figure, and each set of colours, draws a picture of its
+    // own; what has not been drawn for a while goes, and is drawn again if
+    // it is still wanted. A figure marked failed is tried again then too.
+    const QDateTime old = QDateTime::currentDateTime().addDays(-cacheDays);
+    const QFileInfoList files = QDir(m_dir).entryInfoList(QDir::Files);
+    for (const QFileInfo &info : files) {
+        if (info.lastModified() < old)
+            QFile::remove(info.absoluteFilePath());
+    }
 }
 
 Figures::~Figures() {
