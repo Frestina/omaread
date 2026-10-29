@@ -13,7 +13,10 @@
 #include <QTimer>
 #include <QUrl>
 
+#include <csignal>
 #include <utility>
+
+#include <unistd.h>
 
 namespace {
 
@@ -29,8 +32,15 @@ int scale(const QString &kind) {
     return kind == QLatin1String("math") ? mathScale : mermaidScale;
 }
 
-// A program is given this long for each figure before it is given up on.
-constexpr int drawingTimeout = 20000;
+// Stops a program and what it started, all in a process group of their own.
+// mmdc stops its Chromium when asked to, so they are asked first, then made to.
+void stop(QObject *context, QProcess *process) {
+    const pid_t group = pid_t(process->processId());
+    if (group <= 0)
+        return;
+    ::kill(-group, SIGTERM);
+    QTimer::singleShot(2000, context, [group]() { ::kill(-group, SIGKILL); });
+}
 
 QString node() {
     return QStandardPaths::findExecutable(QStringLiteral("node"));
@@ -59,6 +69,13 @@ Figures::Figures(QObject *parent)
     : QObject(parent),
       m_dir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/figures")) {
     QDir().mkpath(m_dir);
+}
+
+Figures::~Figures() {
+    for (QProcess *process : std::as_const(m_processes)) {
+        if (process->processId() > 0)
+            ::kill(-pid_t(process->processId()), SIGTERM);
+    }
 }
 
 bool Figures::canDraw(const QString &kind) {
@@ -176,7 +193,7 @@ void Figures::drawWanted() {
             if (error == QProcess::FailedToStart)
                 emit process->finished(-1, QProcess::CrashExit);
         });
-        QTimer::singleShot(drawingTimeout * figures.size(), process, &QProcess::kill);
+        QTimer::singleShot(m_timeout * figures.size(), process, [this, process]() { stop(this, process); });
     }
 }
 
@@ -197,8 +214,8 @@ void Figures::drawWantedNow(int timeout) {
         byKind[figure.kind].append(figure);
     for (auto it = byKind.cbegin(); it != byKind.cend(); ++it) {
         QProcess *process = start(it.key(), it.value());
-        if (!process->waitForFinished(qMax(timeout, drawingTimeout * int(it.value().size())))) {
-            process->kill();
+        if (!process->waitForFinished(qMax(timeout, m_timeout * int(it.value().size())))) {
+            stop(this, process);
             process->waitForFinished(1000);
         }
         finish(process, it.value());
@@ -208,6 +225,7 @@ void Figures::drawWantedNow(int timeout) {
 QProcess *Figures::start(const QString &kind, const QList<Figure> &figures) {
     auto *process = new QProcess(this);
     process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    process->setChildProcessModifier([]() { ::setpgid(0, 0); });
 
     if (kind == QLatin1String("mermaid")) {
         QStringList arguments{QStringLiteral("-c"), drawMermaid, QStringLiteral("sh"), m_dir,
@@ -249,6 +267,9 @@ void Figures::finish(QProcess *process, const QList<Figure> &figures) {
         m_drawing.remove(figure.key);
         if (!QFile::exists(file(figure)))
             m_failed.insert(figure.key);
+        // What a stopped diagram leaves behind.
+        for (const char *suffix : {".mmd", ".json", ".err"})
+            QFile::remove(m_dir + QLatin1Char('/') + figure.key + QLatin1String(suffix));
     }
     m_processes.removeOne(process);
     process->deleteLater();

@@ -17,6 +17,7 @@ class Figures : public QObject {
 
 public:
     explicit Figures(QObject *parent = nullptr);
+    ~Figures() override;
 
     // Whether what draws a kind of figure, "math" or "mermaid", is installed.
     static bool canDraw(const QString &kind);
@@ -42,6 +43,8 @@ signals:
     void drawn();
 
 private:
+    friend class OmareadTest;
+
     struct Figure {
         QString kind;
         QString key;
@@ -55,6 +58,8 @@ private:
     void finish(QProcess *process, const QList<Figure> &figures);
 
     QString m_dir;
+    // How long a program is given for each figure before it is given up on.
+    int m_timeout = 20000;
     QHash<QString, Figure> m_wanted;
     QSet<QString> m_drawing;
     // What was not drawn for a reason that may pass, such as a program that

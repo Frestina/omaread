@@ -1,4 +1,5 @@
 #include <QtTest>
+#include <csignal>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QQmlApplicationEngine>
@@ -430,6 +431,43 @@ private slots:
         QVERIFY(figures.picture("math", "c - d", false, colors, false).isEmpty());
         figures.drawWantedNow(60000);
         QVERIFY(figures.picture("math", "c - d", false, colors, false).contains("src"));
+    }
+
+    void stoppedDiagramsLeaveNothingRunning() {
+        // A stand-in for mmdc that starts a program of its own, as mmdc
+        // starts Chromium, and hangs.
+        QTemporaryDir dir;
+        QFile script(dir.filePath(QStringLiteral("mmdc")));
+        QVERIFY(script.open(QIODevice::WriteOnly));
+        script.write("#!/bin/sh\nsleep 300 &\necho $! > \"" + dir.filePath(QStringLiteral("child")).toUtf8()
+                     + "\"\nwait\n");
+        script.close();
+        script.setPermissions(script.permissions() | QFile::ExeOwner);
+        const QByteArray path = qgetenv("PATH");
+        qputenv("PATH", dir.path().toUtf8() + ':' + path);
+
+        Figures figures;
+        figures.m_timeout = 500;
+        const QVariantMap colors{{"background", "#ffffff"}, {"foreground", "#1f2328"}};
+        const QDir cache(figures.m_dir);
+        const QStringList failedBefore = cache.entryList({"*.failed"}, QDir::Files);
+        QVERIFY(figures.picture("mermaid", "graph TD\n  Hang", true, colors, false).isEmpty());
+        figures.drawWanted();
+        QTRY_VERIFY(QFile::exists(dir.filePath(QStringLiteral("child"))));
+        QFile child(dir.filePath(QStringLiteral("child")));
+        QVERIFY(child.open(QIODevice::ReadOnly));
+        const pid_t pid = pid_t(child.readAll().trimmed().toLongLong());
+        QVERIFY(pid > 0);
+        QTRY_VERIFY(!figures.drawing());
+        QTRY_VERIFY_WITH_TIMEOUT(::kill(pid, 0) != 0, 5000);
+        qputenv("PATH", path);
+
+        // Nothing is left in the cache but the will to try again next time.
+        QVERIFY(cache.entryList({"*.mmd", "*.json", "*.err"}, QDir::Files).isEmpty());
+        QCOMPARE(cache.entryList({"*.failed"}, QDir::Files), failedBefore);
+        QVERIFY(figures.picture("mermaid", "graph TD\n  Hang", true, colors, false).isEmpty());
+        figures.drawWanted();
+        QVERIFY(!figures.drawing());
     }
 
     void mermaidBlocksBecomeDiagrams() {
